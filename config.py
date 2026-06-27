@@ -65,6 +65,11 @@ WINTER_MIN_F  = None  # minimum avg winter daily high (°F) — below this, elim
 SUMMER_TREND_MAX = 0.7   # max summer warming trend (°F/decade) — above this, eliminated
 WINTER_TREND_MAX = None  # max winter warming trend (°F/decade)
 
+# Coastal proximity — set to a mile threshold to only show coastal towns.
+# Set to None to include all places regardless of distance to coast.
+# Example: 20 shows only places within 20 miles of the ocean/Great Lakes.
+COAST_MAX_MILES = None   # e.g. 20 for beach towns
+
 # ---------------------------------------------------------------------------
 # Display units — affects output only, not cutoffs or scoring
 # ---------------------------------------------------------------------------

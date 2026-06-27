@@ -34,7 +34,11 @@ import requests
 import pandas as pd
 import numpy as np
 import os
+import sys
 from datetime import date, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 
 CACHE_PATH    = "data/processed/daymet_cache.parquet"
 DAYMET_URL    = "https://daymet.ornl.gov/single-pixel/api/data"
@@ -131,13 +135,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
                     "annual_precip_mm", "snowfall_swe_mm", "snowfall_in_approx",
                     "fetched_at"]
 
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        # Back-fill fetched_at for rows that predate this column
-        if "fetched_at" not in cache.columns:
-            cache["fetched_at"] = pd.NaT
-    else:
-        cache = pd.DataFrame(columns=climate_cols)
+    cache = _db.read_cache("daymet_cache", CACHE_PATH, climate_cols)
+    if "fetched_at" not in cache.columns:
+        cache["fetched_at"] = pd.NaT
 
     today = date.today()
     cutoff = pd.Timestamp(today) - pd.Timedelta(days=REFRESH_DAYS)
@@ -173,10 +173,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
                 # Remove only the geoids we're about to write (handles stale replacements)
                 cache = cache[~cache["geoid"].isin(flushed_geoids)]
                 cache = pd.concat([cache, new_df], ignore_index=True)
-                os.makedirs("data/processed", exist_ok=True)
-                cache.to_parquet(CACHE_PATH, index=False)
+                _db.write_cache("daymet_cache", CACHE_PATH, cache)
                 new_rows = []
-                print(f"[daymet] {label} → {CACHE_PATH}")
+                print(f"[daymet] {label} — cache updated")
 
         try:
             for i, row in enumerate(todo.itertuples(), 1):

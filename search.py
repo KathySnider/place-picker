@@ -24,7 +24,7 @@ import threading
 import concurrent.futures
 import pandas as pd
 
-from pipeline import census, osm, daymet, era5, prism, score, state_tax, facilities, osm_detail, osm_trails
+from pipeline import census, osm, daymet, era5, prism, score, state_tax, facilities, osm_detail, osm_trails, coastal
 from regions import region_to_states, CONUS
 import config
 
@@ -396,7 +396,25 @@ def run():
         print(f"  ... and {len(candidates) - 5} more")
 
     # ------------------------------------------------------------------
-    # 4. Enrich with facility proximity (hospitals, colleges, libraries)
+    # 4. Enrich with coastal proximity (one-time shapefile download)
+    # ------------------------------------------------------------------
+    print()
+    candidates = coastal.enrich(candidates)
+
+    coast_max = getattr(config, "COAST_MAX_MILES", None)
+    if coast_max:
+        before = len(candidates)
+        candidates = candidates[
+            candidates["coast_distance_miles"].isna() |
+            (candidates["coast_distance_miles"] <= coast_max)
+        ]
+        dropped = before - len(candidates)
+        if dropped:
+            print(f"[search] Dropped {dropped:,} places > {coast_max} miles from coast "
+                  f"— {len(candidates):,} remaining")
+
+    # ------------------------------------------------------------------
+    # 4b. Enrich with facility proximity (hospitals, colleges, libraries)
     # ------------------------------------------------------------------
     print()
     candidates = facilities.enrich(candidates)

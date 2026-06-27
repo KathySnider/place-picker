@@ -30,7 +30,11 @@ Requires:
 import os
 import io
 import json
+import sys
 import zipfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 import requests
 import numpy as np
 import pandas as pd
@@ -189,10 +193,7 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
     Downloads rasters on first run (~300 MB, one-time).
     Subsequent runs load from cache instantly.
     """
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-    else:
-        cache = pd.DataFrame(columns=PRISM_COLS)
+    cache = _db.read_cache("prism_cache", CACHE_PATH, PRISM_COLS)
 
     cached_geoids = set(cache["geoid"].tolist())
     needed = set(candidates["geoid"].tolist()) - cached_geoids
@@ -207,8 +208,7 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
         new_df = _process_candidates(todo)
 
         cache = pd.concat([cache, new_df], ignore_index=True)
-        os.makedirs("data/processed", exist_ok=True)
-        cache.to_parquet(CACHE_PATH, index=False)
+        _db.write_cache("prism_cache", CACHE_PATH, cache)
         # Write sidecar with dataset provenance
         meta = {
             "cache_updated":  str(date.today()),

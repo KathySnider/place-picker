@@ -1,0 +1,15 @@
+.env
+.git
+__pycache__
+*.pyc
+*.pyo
+data/raw/
+data/processed/
+data/backup/
+data/scorer/
+web/node_modules/
+web/dist/
+.vscode/
+*.parquet
+*.nc
+era5_monthly*.nc

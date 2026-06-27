@@ -29,7 +29,11 @@ import time
 import requests
 import pandas as pd
 import os
+import sys
 from datetime import date, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 
 CACHE_PATH   = "data/processed/osm_cache.parquet"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -264,15 +268,12 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
                   "lifestyle_800m", "lifestyle_1600m",
                   "anchor_lat", "anchor_lng"]
 
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        for col in cache_cols[1:]:
-            if col not in cache.columns:
-                cache[col] = None
-        if "fetched_at" not in cache.columns:
-            cache["fetched_at"] = pd.NaT
-    else:
-        cache = pd.DataFrame(columns=cache_cols + ["fetched_at"])
+    cache = _db.read_cache("osm_cache", CACHE_PATH, cache_cols + ["fetched_at"])
+    for col in cache_cols[1:]:
+        if col not in cache.columns:
+            cache[col] = None
+    if "fetched_at" not in cache.columns:
+        cache["fetched_at"] = pd.NaT
 
     today   = pd.Timestamp(date.today())
     cutoff  = pd.Timestamp(date.today() - timedelta(days=REFRESH_DAYS))
@@ -304,10 +305,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
                 refreshed  = set(new_df["geoid"].tolist())
                 cache      = cache[~cache["geoid"].isin(refreshed)]
                 cache      = pd.concat([cache, new_df], ignore_index=True)
-                os.makedirs("data/processed", exist_ok=True)
-                cache.to_parquet(CACHE_PATH, index=False)
+                _db.write_cache("osm_cache", CACHE_PATH, cache)
                 new_rows = []
-                print(f"[osm] {label} → {CACHE_PATH}")
+                print(f"[osm] {label} — cache updated")
 
         try:
             for i, row in enumerate(todo.itertuples(), 1):

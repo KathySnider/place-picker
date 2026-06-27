@@ -27,12 +27,16 @@ import requests
 import pandas as pd
 import numpy as np
 import os
+import sys
 from datetime import date, timedelta
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
+
 CACHE_PATH   = "data/processed/osm_detail_cache.parquet"
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 RATE_LIMIT   = 3.0
 RETRY_WAIT   = 15
+MAX_RETRIES  = 3
 CACHE_DAYS   = 180   # refresh after 6 months
 
 OVERPASS_SERVERS = [
@@ -50,6 +54,8 @@ DETAIL_COLS = [
     # Lifestyle
     "has_restaurant", "has_cafe", "has_bar", "has_shopping",
     "has_park", "has_arts", "has_transit",
+    # Coastal
+    "has_beach",
 ]
 
 HEADERS = {
@@ -57,8 +63,10 @@ HEADERS = {
     "Accept":     "application/json",
 }
 
+BEACH_RADIUS = 8_047  # ~5 miles for beach detection
+
 QUERY = """
-[out:json][timeout:45];
+[out:json][timeout:60];
 (
   node(around:{radius},{lat},{lon})[amenity~"supermarket|grocery|convenience"];
   node(around:{radius},{lat},{lon})[shop~"supermarket|convenience|greengrocer|butcher|bakery|food|deli|health_food"];
@@ -75,6 +83,8 @@ QUERY = """
   node(around:{radius},{lat},{lon})[tourism~"gallery|museum"];
   node(around:{radius},{lat},{lon})[public_transport~"stop_position|platform"];
   node(around:{radius},{lat},{lon})[highway="bus_stop"];
+  node(around:{beach_r},{lat},{lon})[natural="beach"];
+  way(around:{beach_r},{lat},{lon})[natural="beach"];
 );
 out tags qt;
 """
@@ -146,25 +156,41 @@ def _classify_node(tags: dict) -> set[str]:
     if pt in ("stop_position", "platform") or highway == "bus_stop":
         found.add("transit")
 
+    if tags.get("natural") == "beach":
+        found.add("beach")
+
     return found
 
 
 def _fetch_one(lat: float, lon: float) -> dict | None:
     """Query Overpass for one place. Returns amenity presence dict or None on error."""
-    query = QUERY.format(radius=RADIUS, lat=lat, lon=lon)
+    query = QUERY.format(radius=RADIUS, beach_r=BEACH_RADIUS, lat=lat, lon=lon)
+    elements = None
     for server in OVERPASS_SERVERS:
-        try:
-            resp = requests.post(server, data={"data": query},
-                                 headers=HEADERS, timeout=60)
-            if resp.status_code == 429:
-                time.sleep(RETRY_WAIT)
-                continue
-            resp.raise_for_status()
-            elements = resp.json().get("elements", [])
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                resp = requests.post(server, data={"data": query},
+                                     headers=HEADERS, timeout=60)
+                if resp.status_code == 429:
+                    wait = RETRY_WAIT * attempt
+                    print(f" (rate-limited, waiting {wait}s)", end="", flush=True)
+                    time.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                elements = resp.json().get("elements", [])
+                break
+            except Exception as e:
+                if attempt < MAX_RETRIES:
+                    wait = RETRY_WAIT * attempt
+                    print(f" (attempt {attempt} failed: {type(e).__name__}, retrying in {wait}s)",
+                          end="", flush=True)
+                    time.sleep(wait)
+                else:
+                    print(f" (server {server.split('/')[2]} failed after {MAX_RETRIES} attempts)",
+                          end="", flush=True)
+        if elements is not None:
             break
-        except Exception:
-            continue
-    else:
+    if elements is None:
         return None
 
     found = set()
@@ -190,6 +216,7 @@ def _fetch_one(lat: float, lon: float) -> dict | None:
         "has_park":        "park"       in found,
         "has_arts":        "arts"       in found,
         "has_transit":     "transit"    in found,
+        "has_beach":       "beach"      in found,
     }
 
 
@@ -199,12 +226,9 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
     Uses anchor_lat/anchor_lng from OSM cache if available, else lat/lng.
     Caches results; refreshes rows older than CACHE_DAYS.
     """
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        if "detail_fetched_date" not in cache.columns:
-            cache["detail_fetched_date"] = pd.NaT
-    else:
-        cache = pd.DataFrame(columns=DETAIL_COLS)
+    cache = _db.read_cache("osm_detail_cache", CACHE_PATH, DETAIL_COLS)
+    if "detail_fetched_date" not in cache.columns:
+        cache["detail_fetched_date"] = pd.NaT
 
     today     = pd.Timestamp(date.today())
     stale_age = pd.Timedelta(days=CACHE_DAYS)
@@ -212,9 +236,18 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
     cached = cache.copy()
     cached["detail_fetched_date"] = pd.to_datetime(cached["detail_fetched_date"])
 
+    # A row is stale if it's too old OR if any required boolean column is NULL
+    # (NULL means the column was added after the row was originally fetched)
+    bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
+    present_bool_cols = [c for c in bool_cols if c in cached.columns]
+    has_missing = (
+        cached[present_bool_cols].isnull().any(axis=1)
+        if present_bool_cols else pd.Series(False, index=cached.index)
+    )
+
     fresh_geoids = set(
         cached.loc[
-            (today - cached["detail_fetched_date"]) < stale_age,
+            ((today - cached["detail_fetched_date"]) < stale_age) & ~has_missing,
             "geoid"
         ].tolist()
     )
@@ -250,8 +283,7 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
             refreshed = set(new_df["geoid"].tolist())
             cache = cache[~cache["geoid"].isin(refreshed)]
             cache = pd.concat([cache, new_df], ignore_index=True)
-            os.makedirs("data/processed", exist_ok=True)
-            cache.to_parquet(CACHE_PATH, index=False)
+            _db.write_cache("osm_detail_cache", CACHE_PATH, cache)
             print(f"[osm_detail] Cache updated: {len(new_df)} places")
 
     bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]

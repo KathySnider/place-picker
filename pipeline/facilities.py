@@ -25,10 +25,14 @@ Output columns added to candidates DataFrame:
 
 import io
 import os
+import sys
 import zipfile
 import requests
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 
 CACHE_PATH   = "data/processed/facilities_cache.parquet"
 
@@ -163,13 +167,10 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
     calculations for candidates not already covered.
     """
     # Load or initialize local cache
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        for col in FACILITY_COLS[1:]:
-            if col not in cache.columns:
-                cache[col] = np.nan
-    else:
-        cache = pd.DataFrame(columns=FACILITY_COLS)
+    cache = _db.read_cache("facilities_cache", CACHE_PATH, FACILITY_COLS)
+    for col in FACILITY_COLS[1:]:
+        if col not in cache.columns:
+            cache[col] = np.nan
 
     cached_geoids = set(cache["geoid"].tolist())
     needed = set(candidates["geoid"].tolist()) - cached_geoids
@@ -224,8 +225,7 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
         if new_rows:
             new_df = pd.DataFrame(new_rows)
             cache  = pd.concat([cache, new_df], ignore_index=True)
-            os.makedirs("data/processed", exist_ok=True)
-            cache.to_parquet(CACHE_PATH, index=False)
-            print(f"[facilities] Cache updated → {CACHE_PATH}")
+            _db.write_cache("facilities_cache", CACHE_PATH, cache)
+            print(f"[facilities] Cache updated")
 
     return candidates.merge(cache[FACILITY_COLS], on="geoid", how="left")

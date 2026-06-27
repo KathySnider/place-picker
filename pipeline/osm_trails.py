@@ -27,12 +27,17 @@ import time
 import requests
 import pandas as pd
 import os
+import sys
 from datetime import date
 
-CACHE_PATH  = "data/processed/osm_trails_cache.parquet"
-CACHE_DAYS  = 180
-RATE_LIMIT  = 3.0
-RETRY_WAIT  = 15
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
+
+CACHE_PATH   = "data/processed/osm_trails_cache.parquet"
+CACHE_DAYS   = 180
+RATE_LIMIT   = 3.0
+RETRY_WAIT   = 15
+MAX_RETRIES  = 3   # attempts per server before rotating
 
 TRAIL_RADIUS_M = 16_093   # 10 miles
 FOOT_RADIUS_M  = 1_600    # ~1 mile
@@ -102,17 +107,29 @@ def _fetch_one(lat: float, lon: float) -> dict | None:
                          lat=lat, lon=lon)
     elements = None
     for server in OVERPASS_SERVERS:
-        try:
-            resp = requests.post(server, data={"data": query},
-                                 headers=HEADERS, timeout=120)
-            if resp.status_code == 429:
-                time.sleep(RETRY_WAIT)
-                continue
-            resp.raise_for_status()
-            elements = resp.json().get("elements", [])
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                resp = requests.post(server, data={"data": query},
+                                     headers=HEADERS, timeout=120)
+                if resp.status_code == 429:
+                    wait = RETRY_WAIT * attempt
+                    print(f" (rate-limited, waiting {wait}s)", end="", flush=True)
+                    time.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                elements = resp.json().get("elements", [])
+                break
+            except Exception as e:
+                if attempt < MAX_RETRIES:
+                    wait = RETRY_WAIT * attempt
+                    print(f" (attempt {attempt} failed: {type(e).__name__}, retrying in {wait}s)",
+                          end="", flush=True)
+                    time.sleep(wait)
+                else:
+                    print(f" (server {server.split('/')[2]} failed after {MAX_RETRIES} attempts)",
+                          end="", flush=True)
+        if elements is not None:
             break
-        except Exception:
-            continue
 
     if elements is None:
         return None
@@ -153,12 +170,9 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
     Uses anchor_lat/anchor_lng from OSM cache if available, else lat/lng.
     Caches results; refreshes rows older than CACHE_DAYS.
     """
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        if "trails_fetched_date" not in cache.columns:
-            cache["trails_fetched_date"] = pd.NaT
-    else:
-        cache = pd.DataFrame(columns=TRAIL_COLS)
+    cache = _db.read_cache("osm_trails_cache", CACHE_PATH, TRAIL_COLS)
+    if "trails_fetched_date" not in cache.columns:
+        cache["trails_fetched_date"] = pd.NaT
 
     today     = pd.Timestamp(date.today())
     stale_age = pd.Timedelta(days=CACHE_DAYS)
@@ -205,8 +219,7 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
             refreshed = set(new_df["geoid"].tolist())
             cache = cache[~cache["geoid"].isin(refreshed)]
             cache = pd.concat([cache, new_df], ignore_index=True)
-            os.makedirs("data/processed", exist_ok=True)
-            cache.to_parquet(CACHE_PATH, index=False)
+            _db.write_cache("osm_trails_cache", CACHE_PATH, cache)
             print(f"[osm_trails] Cache updated: {len(new_df)} places")
 
     keep_cols = ["geoid", "trail_miles_10mi", "footway_miles_1mi"]

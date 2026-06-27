@@ -21,12 +21,16 @@ Filtering by population range happens in search.py based on config.py settings.
 import os
 import io
 import json
+import sys
 import zipfile
 import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 
 load_dotenv()
 
@@ -43,16 +47,16 @@ def fetch(force_refresh: bool = False) -> pd.DataFrame:
     Uses a local cache; automatically refreshes if the cache is older than
     CACHE_MAX_DAYS. Pass force_refresh=True to force an immediate re-download.
     """
-    if not force_refresh and os.path.exists(CACHE_PATH):
-        age_days = _cache_age_days()
-        if age_days is not None and age_days > CACHE_MAX_DAYS:
-            print(f"[census] Cache is {age_days} days old (> {CACHE_MAX_DAYS}) — refreshing...")
-        else:
-            if age_days is not None:
-                print(f"[census] Loaded from cache: {CACHE_PATH} ({age_days} days old)")
+    if not force_refresh:
+        cached = _db.read_cache("census_places", CACHE_PATH, [])
+        if not cached.empty:
+            age_days = _cache_age_days()
+            if age_days is not None and age_days > CACHE_MAX_DAYS:
+                print(f"[census] Cache is {age_days} days old (> {CACHE_MAX_DAYS}) — refreshing...")
             else:
-                print(f"[census] Loaded from cache: {CACHE_PATH}")
-            return pd.read_parquet(CACHE_PATH)
+                msg = f" ({age_days} days old)" if age_days is not None else ""
+                print(f"[census] Loaded from cache{msg}")
+                return cached
 
     return _download_and_cache()
 
@@ -316,8 +320,7 @@ def _download_and_cache() -> pd.DataFrame:
     ]
     df = df[final].reset_index(drop=True)
 
-    os.makedirs("data/processed", exist_ok=True)
-    df.to_parquet(CACHE_PATH, index=False)
+    _db.write_cache("census_places", CACHE_PATH, df)
 
     meta = {
         "acs_vintage":   vintage,

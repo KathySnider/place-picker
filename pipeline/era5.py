@@ -33,8 +33,12 @@ Requires:
 
 import os
 import json
+import sys
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import db as _db
 from datetime import date
 from dotenv import load_dotenv
 
@@ -254,13 +258,10 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
     Subsequent runs load from cache instantly.
     """
     # Load or initialize cache
-    if os.path.exists(CACHE_PATH):
-        cache = pd.read_parquet(CACHE_PATH)
-        for col in ERA5_COLS[1:]:
-            if col not in cache.columns:
-                cache[col] = np.nan
-    else:
-        cache = pd.DataFrame(columns=ERA5_COLS)
+    cache = _db.read_cache("era5_cache", CACHE_PATH, ERA5_COLS)
+    for col in ERA5_COLS[1:]:
+        if col not in cache.columns:
+            cache[col] = np.nan
 
     cached_geoids = set(cache["geoid"].tolist())
     needed = set(candidates["geoid"].tolist()) - cached_geoids
@@ -283,8 +284,7 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
         new_df  = _process_grid(todo)
 
         cache = pd.concat([cache, new_df], ignore_index=True)
-        os.makedirs("data/processed", exist_ok=True)
-        cache.to_parquet(CACHE_PATH, index=False)
+        _db.write_cache("era5_cache", CACHE_PATH, cache)
         # Write sidecar with dataset provenance
         meta = {
             "cache_updated":  str(date.today()),
