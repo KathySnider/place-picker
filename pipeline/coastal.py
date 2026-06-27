@@ -27,7 +27,11 @@ import db as _db
 
 CACHE_PATH  = "data/processed/coastal_cache.parquet"
 RAW_DIR     = "data/raw/coastln"
-COAST_URL   = "https://www2.census.gov/geo/tiger/TIGER2024/COASTLN/tl_2024_us_coastln.zip"
+COAST_URLS  = [
+    "https://www2.census.gov/geo/tiger/TIGER2025/COASTLINE/tl_2025_us_coastline.zip",
+    "https://www2.census.gov/geo/tiger/TIGER2024/COASTLN/tl_2024_us_coastln.zip",
+    "https://www2.census.gov/geo/tiger/TIGER2023/COASTLN/tl_2023_us_coastln.zip",
+]
 
 COASTAL_THRESHOLD_MI = 25   # "coastal town" label
 COASTAL_COLS = ["geoid", "coast_distance_miles", "is_coastal"]
@@ -76,8 +80,15 @@ def _load_coastline() -> np.ndarray:
 
     print("[coastal] Downloading Census TIGER coastline (~15 MB)...")
     os.makedirs(RAW_DIR, exist_ok=True)
-    resp = requests.get(COAST_URL, timeout=120)
-    resp.raise_for_status()
+    resp = None
+    for url in COAST_URLS:
+        r = requests.get(url, timeout=120)
+        if r.status_code == 200:
+            resp = r
+            break
+        print(f"[coastal]   {url} → {r.status_code}, trying next...")
+    if resp is None:
+        raise RuntimeError("[coastal] Could not download coastline — all URLs returned errors")
     with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
         shp_name = next(n for n in zf.namelist() if n.endswith(".shp"))
         data = zf.read(shp_name)

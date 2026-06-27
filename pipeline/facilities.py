@@ -27,9 +27,13 @@ import io
 import os
 import sys
 import zipfile
+import certifi
 import requests
 import numpy as np
 import pandas as pd
+
+# Python 3.13 on Windows doesn't include root CA certs; use certifi's bundle.
+os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import db as _db

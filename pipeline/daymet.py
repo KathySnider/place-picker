@@ -138,6 +138,8 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
     cache = _db.read_cache("daymet_cache", CACHE_PATH, climate_cols)
     if "fetched_at" not in cache.columns:
         cache["fetched_at"] = pd.NaT
+    else:
+        cache["fetched_at"] = pd.to_datetime(cache["fetched_at"], errors="coerce")
 
     today = date.today()
     cutoff = pd.Timestamp(today) - pd.Timedelta(days=REFRESH_DAYS)
