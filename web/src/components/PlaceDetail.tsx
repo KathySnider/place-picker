@@ -61,9 +61,8 @@ function AmenityBadge({ label, present }: { label: string; present: boolean | nu
 
 export function PlaceDetail({ place, prefs, onBack }: Props) {
   const { amenities } = place
-  const imperial = prefs.units === 'imperial'
-
-  const ssLabel = { yes: 'SS taxed', no: 'SS exempt', partial: 'SS partial' }[place.ssTaxed ?? ''] ?? ''
+  const ssMap: Record<string, string> = { yes: 'SS taxed', no: 'SS exempt', partial: 'SS partial' }
+  const ssLabel = place.ssTaxed ? (ssMap[place.ssTaxed] ?? '') : ''
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">

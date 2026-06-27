@@ -25,8 +25,6 @@ function fmtSnow(inches: number | null, units: 'imperial' | 'metric') {
 }
 
 export function PlaceCard({ place, rank, prefs, onClick }: Props) {
-  const imperial = prefs.units === 'imperial'
-
   const scoreColor = (s: number) => {
     if (s >= 0.6) return 'text-emerald-600'
     if (s >= 0.45) return 'text-amber-600'
