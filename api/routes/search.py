@@ -22,17 +22,19 @@ router = APIRouter()
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
-async def _run(fn, *args):
+def _run(fn, *args):
     """
-    Run a blocking pipeline function in a thread pool, yielding SSE heartbeat
-    comments every 15 s so HTTP/2 proxies don't drop long-running connections.
+    Schedule a blocking pipeline function in the thread pool and return
+    (future, heartbeat_generator). Iterate the generator in the async pipeline
+    to keep the HTTP/2 connection alive; await the future to get the result.
 
-    Usage in an async generator:
-        result, hbs = _run(some_fn, arg1, arg2)
+    Usage:
+        fut, hbs = _run(some_fn, arg1, arg2)
         async for hb in hbs:
             yield hb
+        result = await fut
     """
-    loop = asyncio.get_running_loop()
+    loop = asyncio.get_event_loop()
     fut = loop.run_in_executor(_executor, fn, *args)
 
     async def _heartbeats():
