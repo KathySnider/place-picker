@@ -228,14 +228,15 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     async for hb in hbs:
         yield hb
     candidates = await fut
-    yield event("osm", f"Walkability data ready")
+    cached_walk = candidates["practical_800m"].notna().sum()
+    yield event("osm", f"Walkability data ready ({cached_walk:,} of {len(candidates):,} places have cached data)")
 
     # Step 3: Rough score & trim — now uses real walkability where available
     yield event("filter", "Applying filters and rough scoring...")
     await asyncio.sleep(0)
     rough = search_module._rough_score(candidates, cfg)
     candidates = rough.head(cfg.CANDIDATES).copy()
-    yield event("filter", f"Top {len(candidates):,} candidates selected for enrichment")
+    yield event("filter", f"{len(candidates):,} candidates selected for enrichment")
     await asyncio.sleep(0)
 
     # Step 4: Daymet climate (cache only)
@@ -246,9 +247,9 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     candidates = await fut
     yield event("daymet", "Climate data ready")
 
-    # Step 5: PRISM
+    # Step 5: PRISM (cache only — rasterio/GDAL not available in container)
     yield event("prism", "Applying PRISM climate normals...")
-    fut, hbs = _run(prism.enrich, candidates)
+    fut, hbs = _run(lambda df: prism.enrich(df, cache_only=True), candidates)
     async for hb in hbs:
         yield hb
     candidates = await fut

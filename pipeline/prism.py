@@ -187,7 +187,7 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
 # Public enrich() function
 # ---------------------------------------------------------------------------
 
-def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
+def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     """
     Add PRISM-derived climate columns to candidates DataFrame.
     Downloads rasters on first run (~300 MB, one-time).
@@ -200,6 +200,9 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
 
     if not needed:
         print("[prism] All candidates already in PRISM cache.")
+    elif cache_only:
+        print(f"[prism] cache_only=True — skipping raster fetch for {len(needed):,} uncached places")
+        needed = set()
     else:
         print(f"[prism] Computing PRISM climate for {len(needed):,} candidates...")
         _download_rasters()
