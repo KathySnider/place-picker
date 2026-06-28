@@ -220,15 +220,21 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             "source":         "PRISM Climate Group, Oregon State University",
             "note": "Delete data/raw/prism/ and this cache to re-download rasters.",
         }
-        with open(META_PATH, "w") as f:
-            json.dump(meta, f, indent=2)
+        try:
+            os.makedirs(os.path.dirname(META_PATH), exist_ok=True)
+            with open(META_PATH, "w") as f:
+                json.dump(meta, f, indent=2)
+        except OSError:
+            pass
         print(f"[prism] Cache saved: {len(new_df):,} places")
 
-    # Print sidecar info so user knows how current the data is
     if os.path.exists(META_PATH):
-        with open(META_PATH) as f:
-            meta = json.load(f)
-        print(f"[prism] Dataset: {meta.get('normals_period')} normals  "
-              f"cached {meta.get('cache_updated')}")
+        try:
+            with open(META_PATH) as f:
+                meta = json.load(f)
+            print(f"[prism] Dataset: {meta.get('normals_period')} normals  "
+                  f"cached {meta.get('cache_updated')}")
+        except OSError:
+            pass
 
     return candidates.merge(cache[PRISM_COLS], on="geoid", how="left")

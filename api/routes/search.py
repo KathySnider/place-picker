@@ -255,9 +255,9 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     candidates = await fut
     yield event("prism", "PRISM data ready")
 
-    # Step 6: ERA5
+    # Step 6: ERA5 (cache only — NetCDF download not suitable for web context)
     yield event("era5", "Applying ERA5 warming trends...")
-    fut, hbs = _run(era5.enrich, candidates)
+    fut, hbs = _run(lambda df: era5.enrich(df, cache_only=True), candidates)
     async for hb in hbs:
         yield hb
     candidates = await fut

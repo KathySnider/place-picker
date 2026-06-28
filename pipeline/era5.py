@@ -251,7 +251,7 @@ def _process_grid(candidates: pd.DataFrame) -> pd.DataFrame:
 # Public enrich() function
 # ---------------------------------------------------------------------------
 
-def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
+def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     """
     Add ERA5 climate trend columns to candidates DataFrame.
     Downloads the ERA5 grid file on first run (~100-150 MB, one-time).
@@ -268,6 +268,9 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
 
     if not needed:
         print("[era5] All candidates already in ERA5 cache.")
+    elif cache_only:
+        print(f"[era5] cache_only=True — skipping grid download for {len(needed):,} uncached places")
+        needed = set()
     else:
         print(f"[era5] Computing ERA5 trends for {len(needed):,} candidates...")
 
@@ -293,15 +296,22 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
             "recent_period":   f"{RECENT[0]}-{RECENT[1]}",
             "note": "Re-download era5_monthly.nc and delete this cache to refresh trends.",
         }
-        with open(META_PATH, "w") as f:
-            json.dump(meta, f, indent=2)
+        try:
+            os.makedirs(os.path.dirname(META_PATH), exist_ok=True)
+            with open(META_PATH, "w") as f:
+                json.dump(meta, f, indent=2)
+        except OSError:
+            pass
         print(f"[era5] Cache updated: {CACHE_PATH} ({len(new_df):,} places)")
 
     # Print sidecar info so user knows how current the data is
     if os.path.exists(META_PATH):
-        with open(META_PATH) as f:
-            meta = json.load(f)
-        print(f"[era5] Dataset: {meta.get('era5_years')}  "
-              f"cached {meta.get('cache_updated')}")
+        try:
+            with open(META_PATH) as f:
+                meta = json.load(f)
+            print(f"[era5] Dataset: {meta.get('era5_years')}  "
+                  f"cached {meta.get('cache_updated')}")
+        except OSError:
+            pass
 
     return candidates.merge(cache[ERA5_COLS], on="geoid", how="left")
