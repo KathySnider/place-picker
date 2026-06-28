@@ -91,6 +91,84 @@ def _rough_rank(df: pd.DataFrame) -> pd.DataFrame:
     return scored.sort_values("rough_score", ascending=False)
 
 
+def _rough_score(df: pd.DataFrame, cfg) -> pd.DataFrame:
+    """Parameterized version of _rough_rank for use by the API (takes cfg, not global config)."""
+    weights = cfg.WEIGHTS
+    scored = df.copy()
+    rough = pd.Series(0.0, index=df.index)
+    n = 0
+
+    def _norm(col: str, higher_is_better: bool):
+        s = pd.to_numeric(scored[col], errors="coerce")
+        if s.isna().all():
+            return pd.Series(0.0, index=s.index)
+        lo, hi = s.min(), s.max()
+        if hi == lo:
+            return pd.Series(0.5, index=s.index)
+        raw = (s - lo) / (hi - lo)
+        return raw if higher_is_better else (1 - raw)
+
+    walk_weight = (weights.get("practical_800m", 0) + weights.get("practical_1600m", 0) +
+                   weights.get("lifestyle_800m", 0) + weights.get("lifestyle_1600m", 0))
+    if walk_weight > 0:
+        if "pct_no_vehicle" in scored.columns and scored["pct_no_vehicle"].notna().any():
+            rough += _norm("pct_no_vehicle", True) * walk_weight
+        elif "pop_density" in scored.columns:
+            rough += _norm("pop_density", True) * walk_weight
+        else:
+            rough += _norm("population", True) * walk_weight
+        n += walk_weight
+
+    if weights.get("home_value", 0) > 0:
+        rough += _norm("median_home_value", False) * weights["home_value"]
+        n += weights["home_value"]
+
+    if weights.get("median_rent", 0) > 0:
+        rough += _norm("median_gross_rent", False) * weights["median_rent"]
+        n += weights["median_rent"]
+
+    if n == 0:
+        if "pct_no_vehicle" in scored.columns and scored["pct_no_vehicle"].notna().any():
+            rough = _norm("pct_no_vehicle", True)
+        elif "pop_density" in scored.columns:
+            rough = _norm("pop_density", True)
+        else:
+            rough = _norm("population", True)
+
+    scored["rough_score"] = rough / max(n, 1)
+    return scored.sort_values("rough_score", ascending=False)
+
+
+def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
+    """
+    Build best-available climate columns (PRISM > ERA5 > Daymet) and apply
+    hard cutoffs from cfg. Used by both search.py and the API route.
+    """
+    def _col(col):
+        return candidates[col] if col in candidates.columns else pd.Series(dtype=float, index=candidates.index)
+
+    out = candidates.copy()
+    out["snow_era5_in"]      = _col("snow_mm_recent") * 10 / 25.4
+    out["snow_best"]         = _col("prism_snow_in").fillna(out["snow_era5_in"]).fillna(_col("snowfall_in_approx"))
+    out["winter_temp_best"]  = _col("prism_winter_f").fillna(_col("winter_f_recent")).fillna(_col("winter_temp_f"))
+    out["summer_temp_f"]     = _col("prism_summer_f").fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
+
+    if getattr(cfg, "SNOW_MIN_IN", None):
+        out = out[out["snow_best"].isna() | (out["snow_best"] >= cfg.SNOW_MIN_IN)]
+    if getattr(cfg, "SNOW_MAX_IN", None):
+        out = out[out["snow_best"].isna() | (out["snow_best"] <= cfg.SNOW_MAX_IN)]
+    if getattr(cfg, "SUMMER_MAX_F", None):
+        out = out[out["summer_temp_f"].isna() | (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
+    if getattr(cfg, "WINTER_MIN_F", None):
+        out = out[out["winter_temp_best"].isna() | (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
+    if getattr(cfg, "SUMMER_TREND_MAX", None):
+        out = out[out["summer_trend_f_dec"].isna() | (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
+    if getattr(cfg, "WINTER_TREND_MAX", None):
+        out = out[out["winter_trend_f_dec"].isna() | (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
+
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------

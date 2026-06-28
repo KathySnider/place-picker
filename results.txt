@@ -1,0 +1,304 @@
+========================================================================
+  TOP 25 PLACES
+========================================================================
+
+   1. Pittsfield (city), Massachusetts
+      Composite score: 0.657
+      Pop: 43,457  |  Home value: $256,900  |  Rent: $904/mo  |  Property tax: $4,148/yr
+      State income tax: 9.00%  |  SS exempt
+      Practical (½mi / 1mi): 21 / 46  |  Lifestyle (½mi / 1mi): 48 / 79
+      Winter mean: 24.9°F (PRISM) | Summer mean: 66.9°F (PRISM) | Snowfall: ~104 in/yr (PRISM) | Precip: 51.7 in/yr
+      ERA5 trends (daily mean) — Summer: 66.6°F → 68.7°F (+0.58°F/dec)  |  Winter: 23.5°F → 27.1°F (+0.98°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 395.0 mi | Footways (1mi): 6.2 mi
+      Hospital: 1.1 mi (6 within 30mi)  |  College: 2.8 mi (12 within 30mi)  |  Library: 0.6 mi (11 within 10mi)
+      Scores: practical_800m: 0.70, practical_1600m: 1.00, lifestyle_800m: 0.27, lifestyle_1600m: 0.23, summer_temp: 0.44, summer_trend: 0.94, winter_trend: 0.55
+
+   2. Lansing (village), New York
+      Composite score: 0.637
+      Pop: 3,876  |  Home value: $516,900  |  Rent: $1,673/mo  |  Property tax: $10,000/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 30 / 31  |  Lifestyle (½mi / 1mi): 44 / 74
+      Winter mean: 26.9°F (PRISM) | Summer mean: 68.5°F (PRISM) | Snowfall: ~40 in/yr (PRISM) | Precip: 40.3 in/yr
+      ERA5 trends (daily mean) — Summer: 67.5°F → 69.2°F (+0.50°F/dec)  |  Winter: 25.6°F → 28.7°F (+0.83°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | -Arts | +Transit
+      Trails (10mi): 111.3 mi | Footways (1mi): 8.2 mi
+      Hospital: 4.1 mi (4 within 30mi)  |  College: 3.0 mi (5 within 30mi)  |  Library: 3.4 mi (5 within 10mi)
+      Scores: practical_800m: 1.00, practical_1600m: 0.67, lifestyle_800m: 0.24, lifestyle_1600m: 0.21, summer_temp: 0.33, summer_trend: 0.90, winter_trend: 0.44
+
+   3. Ithaca (city), New York
+      Composite score: 0.636
+      Pop: 32,814  |  Home value: $342,700  |  Rent: $1,335/mo  |  Property tax: $8,897/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 15 / 44  |  Lifestyle (½mi / 1mi): 144 / 351
+      Winter mean: 28.0°F (PRISM) | Summer mean: 68.9°F (PRISM) | Snowfall: ~37 in/yr (PRISM) | Precip: 34.9 in/yr
+      ERA5 trends (daily mean) — Summer: 67.5°F → 69.2°F (+0.50°F/dec)  |  Winter: 25.6°F → 28.7°F (+0.83°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 155.6 mi | Footways (1mi): 28.0 mi
+      Hospital: 0.8 mi (3 within 30mi)  |  College: 1.0 mi (7 within 30mi)  |  Library: 0.5 mi (3 within 10mi)
+      Scores: practical_800m: 0.50, practical_1600m: 0.96, lifestyle_800m: 0.80, lifestyle_1600m: 1.00, summer_temp: 0.30, summer_trend: 0.90, winter_trend: 0.44
+
+   4. Kalispell (city), Montana
+      Composite score: 0.569
+      Pop: 28,504  |  Home value: $428,000  |  Rent: $949/mo  |  Property tax: $3,297/yr
+      State income tax: 5.90%  |  SS partial
+      Practical (½mi / 1mi): 15 / 28  |  Lifestyle (½mi / 1mi): 67 / 97
+      Winter mean: 25.5°F (PRISM) | Summer mean: 62.5°F (PRISM) | Snowfall: ~36 in/yr (PRISM) | Precip: 18.1 in/yr
+      ERA5 trends (daily mean) — Summer: 70.3°F → 71.5°F (+0.38°F/dec)  |  Winter: 26.5°F → 27.1°F (+0.25°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 94.6 mi | Footways (1mi): 11.5 mi
+      Hospital: 3.6 mi (2 within 30mi)  |  College: 0.8 mi (1 within 30mi)  |  Library: 1.6 mi (1 within 10mi)
+      Scores: practical_800m: 0.50, practical_1600m: 0.61, lifestyle_800m: 0.37, lifestyle_1600m: 0.28, summer_temp: 0.73, summer_trend: 0.83, winter_trend: 0.00
+
+   5. Corning (city), New York
+      Composite score: 0.550
+      Pop: 10,643  |  Home value: $158,400  |  Rent: $845/mo  |  Property tax: $4,371/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 17 / 24  |  Lifestyle (½mi / 1mi): 97 / 139
+      Winter mean: 25.8°F (PRISM) | Summer mean: 67.2°F (PRISM) | Snowfall: ~40 in/yr (PRISM) | Precip: 37.4 in/yr
+      ERA5 trends (daily mean) — Summer: 67.1°F → 69.0°F (+0.55°F/dec)  |  Winter: 25.4°F → 28.4°F (+0.81°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 101.2 mi | Footways (1mi): 13.6 mi
+      Hospital: 2.1 mi (5 within 30mi)  |  College: 2.3 mi (3 within 30mi)  |  Library: 0.6 mi (3 within 10mi)
+      Scores: practical_800m: 0.57, practical_1600m: 0.52, lifestyle_800m: 0.54, lifestyle_1600m: 0.40, summer_temp: 0.42, summer_trend: 0.92, winter_trend: 0.42
+
+   6. Shenandoah (borough), Pennsylvania
+      Composite score: 0.524
+      Pop: 4,146  |  Home value: $49,500  |  Rent: $753/mo  |  Property tax: $869/yr
+      State income tax: 3.07%  |  SS exempt
+      Practical (½mi / 1mi): 20 / 20  |  Lifestyle (½mi / 1mi): 61 / 67
+      Winter mean: 27.6°F (PRISM) | Summer mean: 68.8°F (PRISM) | Snowfall: ~61 in/yr (PRISM) | Precip: 49.8 in/yr
+      ERA5 trends (daily mean) — Summer: 70.2°F → 72.2°F (+0.66°F/dec)  |  Winter: 29.1°F → 32.6°F (+0.99°F/dec)
+      Amenities (1mi): +Grocery | -Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | -Arts | -Transit
+      Trails (10mi): 148.0 mi | Footways (1mi): 0.4 mi
+      Hospital: 9.3 mi (7 within 30mi)  |  College: 9.2 mi (6 within 30mi)  |  Library: 0.4 mi (9 within 10mi)
+      Scores: practical_800m: 0.67, practical_1600m: 0.43, lifestyle_800m: 0.34, lifestyle_1600m: 0.19, summer_temp: 0.31, summer_trend: 0.98, winter_trend: 0.56
+
+   7. Cortland (city), New York
+      Composite score: 0.522
+      Pop: 17,450  |  Home value: $152,600  |  Rent: $847/mo  |  Property tax: $4,190/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 16 / 27  |  Lifestyle (½mi / 1mi): 37 / 57
+      Winter mean: 24.5°F (PRISM) | Summer mean: 66.6°F (PRISM) | Snowfall: ~93 in/yr (PRISM) | Precip: 43.8 in/yr
+      ERA5 trends (daily mean) — Summer: 66.5°F → 68.2°F (+0.49°F/dec)  |  Winter: 24.3°F → 27.4°F (+0.84°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 116.2 mi | Footways (1mi): 12.6 mi
+      Hospital: 1.3 mi (5 within 30mi)  |  College: 0.5 mi (6 within 30mi)  |  Library: 0.1 mi (5 within 10mi)
+      Scores: practical_800m: 0.53, practical_1600m: 0.59, lifestyle_800m: 0.20, lifestyle_1600m: 0.16, summer_temp: 0.46, summer_trend: 0.89, winter_trend: 0.44
+
+   8. Punxsutawney (borough), Pennsylvania
+      Composite score: 0.520
+      Pop: 5,665  |  Home value: $99,000  |  Rent: $608/mo  |  Property tax: $1,093/yr
+      State income tax: 3.07%  |  SS exempt
+      Practical (½mi / 1mi): 18 / 21  |  Lifestyle (½mi / 1mi): 78 / 81
+      Winter mean: 27.9°F (PRISM) | Summer mean: 68.2°F (PRISM) | Snowfall: ~61 in/yr (PRISM) | Precip: 47.3 in/yr
+      ERA5 trends (daily mean) — Summer: 67.9°F → 69.8°F (+0.59°F/dec)  |  Winter: 27.7°F → 31.0°F (+0.89°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | -Cafe | -Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 135.4 mi | Footways (1mi): 20.3 mi
+      Hospital: 1.5 mi (7 within 30mi)  |  College: 16.9 mi (3 within 30mi)  |  Library: 0.3 mi (1 within 10mi)
+      Scores: practical_800m: 0.60, practical_1600m: 0.46, lifestyle_800m: 0.43, lifestyle_1600m: 0.23, summer_temp: 0.35, summer_trend: 0.94, winter_trend: 0.48
+
+   9. Traverse City (city), Michigan
+      Composite score: 0.516
+      Pop: 15,593  |  Home value: $415,400  |  Rent: $965/mo  |  Property tax: $4,671/yr
+      State income tax: 4.25%  |  SS exempt
+      Practical (½mi / 1mi): 13 / 15  |  Lifestyle (½mi / 1mi): 181 / 236
+      Winter mean: 24.8°F (PRISM) | Summer mean: 68.0°F (PRISM) | Snowfall: ~40 in/yr (PRISM) | Precip: 31.1 in/yr
+      ERA5 trends (daily mean) — Summer: 65.9°F → 67.7°F (+0.54°F/dec)  |  Winter: 23.6°F → 26.5°F (+0.79°F/dec)
+      Amenities (1mi): +Grocery | -Pharmacy | +Medical | +Bank | +Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 510.4 mi | Footways (1mi): 15.9 mi
+      Hospital: 4.1 mi (2 within 30mi)  |  College: 1.1 mi (1 within 30mi)  |  Library: 0.3 mi (3 within 10mi)
+      Scores: practical_800m: 0.43, practical_1600m: 0.33, lifestyle_800m: 1.00, lifestyle_1600m: 0.67, summer_temp: 0.36, summer_trend: 0.91, winter_trend: 0.41
+
+  10. Goshen (city), Indiana
+      Composite score: 0.504
+      Pop: 34,420  |  Home value: $184,900  |  Rent: $858/mo  |  Property tax: $1,782/yr
+      State income tax: 3.05%  |  SS exempt
+      Practical (½mi / 1mi): 18 / 27  |  Lifestyle (½mi / 1mi): 89 / 124
+      Winter mean: 27.3°F (PRISM) | Summer mean: 71.1°F (PRISM) | Snowfall: ~48 in/yr (PRISM) | Precip: 37.6 in/yr
+      ERA5 trends (daily mean) — Summer: 71.1°F → 72.6°F (+0.46°F/dec)  |  Winter: 26.7°F → 30.2°F (+0.95°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 34.3 mi | Footways (1mi): 10.3 mi
+      Hospital: 2.6 mi (11 within 30mi)  |  College: 0.7 mi (10 within 30mi)  |  Library: 0.4 mi (4 within 10mi)
+      Scores: practical_800m: 0.60, practical_1600m: 0.59, lifestyle_800m: 0.49, lifestyle_1600m: 0.35, summer_temp: 0.16, summer_trend: 0.88, winter_trend: 0.52
+
+  11. Wausau (city), Wisconsin
+      Composite score: 0.499
+      Pop: 39,996  |  Home value: $167,900  |  Rent: $846/mo  |  Property tax: $3,127/yr
+      State income tax: 7.65%  |  SS exempt
+      Practical (½mi / 1mi): 11 / 23  |  Lifestyle (½mi / 1mi): 109 / 193
+      Winter mean: 17.2°F (PRISM) | Summer mean: 66.8°F (PRISM) | Snowfall: ~38 in/yr (PRISM) | Precip: 37.5 in/yr
+      ERA5 trends (daily mean) — Summer: 66.5°F → 67.9°F (+0.39°F/dec)  |  Winter: 17.1°F → 19.9°F (+0.73°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 44.4 mi | Footways (1mi): 20.3 mi
+      Hospital: 3.1 mi (5 within 30mi)  |  College: 1.7 mi (1 within 30mi)  |  Library: 0.8 mi (3 within 10mi)
+      Scores: practical_800m: 0.37, practical_1600m: 0.50, lifestyle_800m: 0.60, lifestyle_1600m: 0.55, summer_temp: 0.44, summer_trend: 0.84, winter_trend: 0.36
+
+  12. Hanover (CDP), New Hampshire
+      Composite score: 0.490
+      Pop: 8,479  |  Home value: $842,600  |  Rent: $2,179/mo  |  Property tax: $10,001/yr
+      State income tax: 0.00%  |  SS exempt
+      Practical (½mi / 1mi): 14 / 14  |  Lifestyle (½mi / 1mi): 109 / 119
+      Winter mean: 21.9°F (PRISM) | Summer mean: 67.6°F (PRISM) | Snowfall: ~85 in/yr (PRISM) | Precip: 42.0 in/yr
+      ERA5 trends (daily mean) — Summer: 65.2°F → 67.4°F (+0.59°F/dec)  |  Winter: 20.1°F → 23.7°F (+0.99°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | -Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 577.8 mi | Footways (1mi): 27.3 mi
+      Hospital: 5.8 mi (7 within 30mi)  |  College: 1.0 mi (7 within 30mi)  |  Library: 1.1 mi (12 within 10mi)
+      Scores: practical_800m: 0.47, practical_1600m: 0.30, lifestyle_800m: 0.60, lifestyle_1600m: 0.34, summer_temp: 0.39, summer_trend: 0.94, winter_trend: 0.56
+
+  13. Montpelier (city), Vermont
+      Composite score: 0.489
+      Pop: 8,014  |  Home value: $375,100  |  Rent: $1,130/mo  |  Property tax: $6,936/yr
+      State income tax: 8.75%  |  SS partial
+      Practical (½mi / 1mi): 14 / 16  |  Lifestyle (½mi / 1mi): 67 / 72
+      Winter mean: 20.1°F (PRISM) | Summer mean: 66.2°F (PRISM) | Snowfall: ~84 in/yr (PRISM) | Precip: 44.7 in/yr
+      ERA5 trends (daily mean) — Summer: 63.7°F → 65.6°F (+0.53°F/dec)  |  Winter: 17.9°F → 21.4°F (+0.95°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 182.7 mi | Footways (1mi): 9.9 mi
+      Hospital: 8.1 mi (3 within 30mi)  |  College: 0.8 mi (7 within 30mi)  |  Library: 0.4 mi (6 within 10mi)
+      Scores: practical_800m: 0.47, practical_1600m: 0.35, lifestyle_800m: 0.37, lifestyle_1600m: 0.21, summer_temp: 0.48, summer_trend: 0.91, winter_trend: 0.52
+
+  14. Binghamton (city), New York
+      Composite score: 0.481
+      Pop: 47,151  |  Home value: $124,800  |  Rent: $753/mo  |  Property tax: $3,622/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 11 / 25  |  Lifestyle (½mi / 1mi): 65 / 113
+      Winter mean: 26.1°F (PRISM) | Summer mean: 67.6°F (PRISM) | Snowfall: ~50 in/yr (PRISM) | Precip: 42.9 in/yr
+      ERA5 trends (daily mean) — Summer: 67.7°F → 69.4°F (+0.53°F/dec)  |  Winter: 25.9°F → 29.3°F (+0.92°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 110.4 mi | Footways (1mi): 4.7 mi
+      Hospital: 4.2 mi (4 within 30mi)  |  College: 2.4 mi (2 within 30mi)  |  Library: 0.1 mi (5 within 10mi)
+      Scores: practical_800m: 0.37, practical_1600m: 0.54, lifestyle_800m: 0.36, lifestyle_1600m: 0.32, summer_temp: 0.39, summer_trend: 0.91, winter_trend: 0.50
+
+  15. Bradford (city), Pennsylvania
+      Composite score: 0.469
+      Pop: 7,683  |  Home value: $85,600  |  Rent: $660/mo  |  Property tax: $1,904/yr
+      State income tax: 3.07%  |  SS exempt
+      Practical (½mi / 1mi): 11 / 12  |  Lifestyle (½mi / 1mi): 82 / 96
+      Winter mean: 24.9°F (PRISM) | Summer mean: 65.5°F (PRISM) | Snowfall: ~93 in/yr (PRISM) | Precip: 43.3 in/yr
+      ERA5 trends (daily mean) — Summer: 65.3°F → 67.3°F (+0.56°F/dec)  |  Winter: 24.4°F → 27.8°F (+0.94°F/dec)
+      Amenities (1mi): +Grocery | -Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | -Transit
+      Trails (10mi): 711.6 mi | Footways (1mi): 8.3 mi
+      Hospital: 13.8 mi (4 within 30mi)  |  College: 2.1 mi (3 within 30mi)  |  Library: 0.7 mi (1 within 10mi)
+      Scores: practical_800m: 0.37, practical_1600m: 0.26, lifestyle_800m: 0.45, lifestyle_1600m: 0.27, summer_temp: 0.53, summer_trend: 0.92, winter_trend: 0.52
+
+  16. Essex Junction (city), Vermont
+      Composite score: 0.464
+      Pop: 10,803  |  Home value: $407,500  |  Rent: $1,498/mo  |  Property tax: $6,797/yr
+      State income tax: 8.75%  |  SS partial
+      Practical (½mi / 1mi): 15 / 18  |  Lifestyle (½mi / 1mi): 56 / 84
+      Winter mean: 22.0°F (PRISM) | Summer mean: 68.5°F (PRISM) | Snowfall: ~72 in/yr (PRISM) | Precip: 44.3 in/yr
+      ERA5 trends (daily mean) — Summer: 66.2°F → 68.0°F (+0.49°F/dec)  |  Winter: 20.0°F → 23.6°F (+0.95°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 423.6 mi | Footways (1mi): 15.7 mi
+      Hospital: 5.2 mi (4 within 30mi)  |  College: 2.6 mi (6 within 30mi)  |  Library: 0.2 mi (14 within 10mi)
+      Scores: practical_800m: 0.50, practical_1600m: 0.39, lifestyle_800m: 0.31, lifestyle_1600m: 0.24, summer_temp: 0.33, summer_trend: 0.89, winter_trend: 0.52
+
+  17. Jamestown (city), New York
+      Composite score: 0.448
+      Pop: 28,188  |  Home value: $87,700  |  Rent: $621/mo  |  Property tax: $2,453/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 11 / 18  |  Lifestyle (½mi / 1mi): 27 / 47
+      Winter mean: 25.7°F (PRISM) | Summer mean: 66.3°F (PRISM) | Snowfall: ~63 in/yr (PRISM) | Precip: 45.6 in/yr
+      ERA5 trends (daily mean) — Summer: 65.5°F → 67.5°F (+0.54°F/dec)  |  Winter: 25.0°F → 28.3°F (+0.93°F/dec)
+      Amenities (1mi): +Grocery | -Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 49.9 mi | Footways (1mi): 10.5 mi
+      Hospital: 1.8 mi (5 within 30mi)  |  College: 0.7 mi (4 within 30mi)  |  Library: 0.4 mi (10 within 10mi)
+      Scores: practical_800m: 0.37, practical_1600m: 0.39, lifestyle_800m: 0.15, lifestyle_1600m: 0.13, summer_temp: 0.48, summer_trend: 0.92, winter_trend: 0.51
+
+  18. Marquette (city), Michigan
+      Composite score: 0.443
+      Pop: 21,325  |  Home value: $274,700  |  Rent: $927/mo  |  Property tax: $3,477/yr
+      State income tax: 4.25%  |  SS exempt
+      Practical (½mi / 1mi): 7 / 16  |  Lifestyle (½mi / 1mi): 49 / 75
+      Winter mean: 21.0°F (PRISM) | Summer mean: 63.5°F (PRISM) | Snowfall: ~70 in/yr (PRISM) | Precip: 32.6 in/yr
+      ERA5 trends (daily mean) — Summer: 63.0°F → 64.1°F (+0.31°F/dec)  |  Winter: 17.5°F → 20.6°F (+0.84°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | -Bank | -Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 472.2 mi | Footways (1mi): 13.8 mi
+      Hospital: 2.7 mi (2 within 30mi)  |  College: 0.8 mi (1 within 30mi)  |  Library: 0.4 mi (1 within 10mi)
+      Scores: practical_800m: 0.23, practical_1600m: 0.35, lifestyle_800m: 0.27, lifestyle_1600m: 0.21, summer_temp: 0.66, summer_trend: 0.79, winter_trend: 0.45
+
+  19. Bar Harbor (CDP), Maine
+      Composite score: 0.437
+      Pop: 2,296  |  Home value: $626,900  |  Rent: $940/mo  |  Property tax: $4,452/yr
+      State income tax: 7.15%  |  SS exempt
+      Practical (½mi / 1mi): 8 / 9  |  Lifestyle (½mi / 1mi): 71 / 73
+      Winter mean: 25.7°F (PRISM) | Summer mean: 64.2°F (PRISM) | Snowfall: ~86 in/yr (PRISM) | Precip: 51.1 in/yr
+      ERA5 trends (daily mean) — Summer: 63.2°F → 64.9°F (+0.52°F/dec)  |  Winter: 24.1°F → 27.2°F (+0.86°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | -Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 246.4 mi | Footways (1mi): 8.3 mi
+      Hospital: 2.8 mi (3 within 30mi)  |  College: 1.1 mi (2 within 30mi)  |  Library: 0.5 mi (8 within 10mi)
+      Scores: practical_800m: 0.27, practical_1600m: 0.20, lifestyle_800m: 0.39, lifestyle_1600m: 0.21, summer_temp: 0.62, summer_trend: 0.90, winter_trend: 0.46
+
+  20. Saranac Lake (village), New York
+      Composite score: 0.435
+      Pop: 4,965  |  Home value: $199,900  |  Rent: $746/mo  |  Property tax: $4,285/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 8 / 9  |  Lifestyle (½mi / 1mi): 38 / 46
+      Winter mean: 18.0°F (PRISM) | Summer mean: 63.1°F (PRISM) | Snowfall: ~111 in/yr (PRISM) | Precip: 45.4 in/yr
+      ERA5 trends (daily mean) — Summer: 62.4°F → 64.1°F (+0.47°F/dec)  |  Winter: 17.1°F → 20.5°F (+0.91°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | -Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 226.2 mi | Footways (1mi): 7.1 mi
+      Hospital: 1.7 mi (3 within 30mi)  |  College: 0.7 mi (2 within 30mi)  |  Library: 0.1 mi (2 within 10mi)
+      Scores: practical_800m: 0.27, practical_1600m: 0.20, lifestyle_800m: 0.21, lifestyle_1600m: 0.13, summer_temp: 0.69, summer_trend: 0.88, winter_trend: 0.50
+
+  21. Storrs (CDP), Connecticut
+      Composite score: 0.433
+      Pop: 15,207  |  Home value: $325,100  |  Rent: $1,559/mo  |  Property tax: $5,722/yr
+      State income tax: 6.99%  |  SS partial
+      Practical (½mi / 1mi): 11 / 18  |  Lifestyle (½mi / 1mi): 91 / 139
+      Winter mean: 28.8°F (PRISM) | Summer mean: 68.9°F (PRISM) | Snowfall: ~67 in/yr (PRISM) | Precip: 57.5 in/yr
+      ERA5 trends (daily mean) — Summer: 70.5°F → 71.8°F (+0.39°F/dec)  |  Winter: 29.7°F → 32.6°F (+0.78°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | +Library | +Restaurant | +Cafe | -Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 376.3 mi | Footways (1mi): 34.9 mi
+      Hospital: 7.3 mi (10 within 30mi)  |  College: 0.1 mi (26 within 30mi)  |  Library: 0.6 mi (15 within 10mi)
+      Scores: practical_800m: 0.37, practical_1600m: 0.39, lifestyle_800m: 0.50, lifestyle_1600m: 0.40, summer_temp: 0.30, summer_trend: 0.84, winter_trend: 0.40
+
+  22. St. Johnsbury (CDP), Vermont
+      Composite score: 0.431
+      Pop: 5,859  |  Home value: $174,500  |  Rent: $814/mo  |  Property tax: $3,778/yr
+      State income tax: 8.75%  |  SS partial
+      Practical (½mi / 1mi): 10 / 11  |  Lifestyle (½mi / 1mi): 42 / 55
+      Winter mean: 18.6°F (PRISM) | Summer mean: 65.4°F (PRISM) | Snowfall: ~99 in/yr (PRISM) | Precip: 43.3 in/yr
+      ERA5 trends (daily mean) — Summer: 64.1°F → 65.7°F (+0.48°F/dec)  |  Winter: 17.6°F → 21.3°F (+1.00°F/dec)
+      Amenities (1mi): +Grocery | -Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | -Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 100.7 mi | Footways (1mi): 5.2 mi
+      Hospital: 2.2 mi (5 within 30mi)  |  College: 23.7 mi (3 within 30mi)  |  Library: 1.0 mi (6 within 10mi)
+      Scores: practical_800m: 0.33, practical_1600m: 0.24, lifestyle_800m: 0.23, lifestyle_1600m: 0.16, summer_temp: 0.54, summer_trend: 0.88, winter_trend: 0.56
+
+  23. Glens Falls (city), New York
+      Composite score: 0.428
+      Pop: 14,609  |  Home value: $212,200  |  Rent: $924/mo  |  Property tax: $4,472/yr
+      State income tax: 10.90%  |  SS exempt
+      Practical (½mi / 1mi): 10 / 24  |  Lifestyle (½mi / 1mi): 48 / 68
+      Winter mean: 24.1°F (PRISM) | Summer mean: 69.1°F (PRISM) | Snowfall: ~95 in/yr (PRISM) | Precip: 43.8 in/yr
+      ERA5 trends (daily mean) — Summer: 67.9°F → 69.7°F (+0.48°F/dec)  |  Winter: 23.3°F → 26.8°F (+0.94°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | -Library | +Restaurant | +Cafe | +Bar | +Shopping | +Park | +Arts | +Transit
+      Trails (10mi): 268.1 mi | Footways (1mi): 3.6 mi
+      Hospital: 0.0 mi (2 within 30mi)  |  College: 2.9 mi (3 within 30mi)  |  Library: 0.0 mi (6 within 10mi)
+      Scores: practical_800m: 0.33, practical_1600m: 0.52, lifestyle_800m: 0.27, lifestyle_1600m: 0.19, summer_temp: 0.29, summer_trend: 0.89, winter_trend: 0.52
+
+  24. Willimantic (CDP), Connecticut
+      Composite score: 0.425
+      Pop: 18,096  |  Home value: $190,900  |  Rent: $889/mo  |  Property tax: $4,678/yr
+      State income tax: 6.99%  |  SS partial
+      Practical (½mi / 1mi): 12 / 19  |  Lifestyle (½mi / 1mi): 91 / 126
+      Winter mean: 29.9°F (PRISM) | Summer mean: 70.1°F (PRISM) | Snowfall: ~38 in/yr (PRISM) | Precip: 53.6 in/yr
+      ERA5 trends (daily mean) — Summer: 70.5°F → 71.8°F (+0.39°F/dec)  |  Winter: 29.7°F → 32.6°F (+0.78°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | -Post office | +Library | +Restaurant | +Cafe | +Bar | +Shopping | -Park | +Arts | +Transit
+      Trails (10mi): 365.4 mi | Footways (1mi): 5.1 mi
+      Hospital: 0.6 mi (9 within 30mi)  |  College: 0.5 mi (23 within 30mi)  |  Library: 0.3 mi (17 within 10mi)
+      Scores: practical_800m: 0.40, practical_1600m: 0.41, lifestyle_800m: 0.50, lifestyle_1600m: 0.36, summer_temp: 0.23, summer_trend: 0.84, winter_trend: 0.40
+
+  25. Colchester (CDP), Connecticut
+      Composite score: 0.420
+      Pop: 4,692  |  Home value: $294,600  |  Rent: $1,152/mo  |  Property tax: $5,405/yr
+      State income tax: 6.99%  |  SS partial
+      Practical (½mi / 1mi): 15 / 17  |  Lifestyle (½mi / 1mi): 53 / 62
+      Winter mean: 29.7°F (PRISM) | Summer mean: 69.7°F (PRISM) | Snowfall: ~40 in/yr (PRISM) | Precip: 56.8 in/yr
+      ERA5 trends (daily mean) — Summer: 71.0°F → 72.1°F (+0.36°F/dec)  |  Winter: 31.2°F → 34.0°F (+0.77°F/dec)
+      Amenities (1mi): +Grocery | +Pharmacy | +Medical | +Bank | +Post office | -Library | +Restaurant | +Cafe | -Bar | +Shopping | -Park | -Arts | +Transit
+      Trails (10mi): 407.6 mi | Footways (1mi): 2.9 mi
+      Hospital: 11.1 mi (9 within 30mi)  |  College: 11.6 mi (22 within 30mi)  |  Library: 0.2 mi (9 within 10mi)
+      Scores: practical_800m: 0.50, practical_1600m: 0.37, lifestyle_800m: 0.29, lifestyle_1600m: 0.18, summer_temp: 0.25, summer_trend: 0.82, winter_trend: 0.39
+

@@ -18,6 +18,7 @@ const STEP_LABELS: Record<string, string> = {
   start:      'Starting up',
   census:     'Census data',
   filter:     'Filtering candidates',
+  coastal:    'Coastal proximity',
   osm:        'Walkability (OSM)',
   daymet:     'Climate (Daymet)',
   prism:      'Climate (PRISM)',

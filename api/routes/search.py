@@ -168,7 +168,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     await asyncio.sleep(0)
 
     # Import pipeline modules lazily (they're heavy)
-    from pipeline import census, osm, daymet, era5, prism, score, state_tax, facilities, osm_detail, osm_trails
+    from pipeline import census, osm, daymet, era5, prism, score, state_tax, facilities, osm_detail, osm_trails, coastal
     import search as search_module
 
     cfg = _build_config(req)
@@ -186,6 +186,12 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     rough = search_module._rough_score(candidates, cfg)
     candidates = rough.head(cfg.CANDIDATES).copy()
     yield event("filter", f"Top {len(candidates):,} candidates selected for enrichment")
+    await asyncio.sleep(0)
+
+    # Step 2b: Coastal proximity
+    yield event("coastal", "Loading coastal proximity data...")
+    await asyncio.sleep(0)
+    candidates = coastal.enrich(candidates)
     await asyncio.sleep(0)
 
     # Step 3: OSM walkability
