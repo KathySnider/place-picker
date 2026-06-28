@@ -64,6 +64,11 @@ def _pg_type(dtype) -> str:
     return "TEXT"
 
 
+def engine():
+    """Public accessor for the singleton engine (None if no DATABASE_URL)."""
+    return _engine()
+
+
 def read_cache(table: str, parquet_path: str, fallback_cols: list) -> pd.DataFrame:
     engine = _engine()
     if engine is not None:

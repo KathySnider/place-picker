@@ -41,6 +41,70 @@ META_PATH  = "data/processed/census_places_meta.json"
 CACHE_MAX_DAYS = 365   # re-download census data after this many days
 
 
+def load(
+    population: dict,
+    regions: list[str],
+    states: list[str],
+    metro_max: int | None,
+    home_value_max: int | None = None,
+    rent_max: int | None = None,
+) -> pd.DataFrame:
+    """
+    Return filtered candidates using a SQL WHERE clause when Postgres is
+    available, otherwise fall back to fetch() + in-memory filtering.
+    """
+    from regions import region_to_states
+    all_states = region_to_states(regions) if regions else []
+    if states:
+        all_states = list(dict.fromkeys(all_states + states))
+
+    engine = _db.engine()
+    if engine is not None:
+        from sqlalchemy import text
+        clauses = [
+            "population >= :pop_min",
+            "population <= :pop_max",
+        ]
+        params: dict = {
+            "pop_min": population["min"],
+            "pop_max": population["max"],
+        }
+        if all_states:
+            clauses.append("state_name = ANY(:states)")
+            params["states"] = all_states
+        if metro_max is not None:
+            clauses.append("(cbsa_pop IS NULL OR cbsa_pop <= :metro_max)")
+            params["metro_max"] = metro_max
+        if home_value_max is not None:
+            clauses.append("(median_home_value IS NULL OR median_home_value <= :hv_max)")
+            params["hv_max"] = home_value_max
+        if rent_max is not None:
+            clauses.append("(median_gross_rent IS NULL OR median_gross_rent <= :rent_max)")
+            params["rent_max"] = rent_max
+
+        sql = f"SELECT * FROM census_places WHERE {' AND '.join(clauses)}"
+        try:
+            with engine.connect() as conn:
+                df = pd.read_sql(text(sql), conn, params=params)
+            print(f"[census] SQL query returned {len(df):,} places")
+            return df
+        except Exception as e:
+            print(f"[census] SQL load failed ({e}), falling back to full fetch")
+
+    # Fallback: read full table and filter in Python
+    df = fetch()
+    df = df[df["population"].between(population["min"], population["max"])]
+    if all_states:
+        df = df[df["state_name"].isin(all_states)]
+    if metro_max is not None and "cbsa_pop" in df.columns:
+        df = df[df["cbsa_pop"].isna() | (df["cbsa_pop"] <= metro_max)]
+    if home_value_max is not None:
+        df = df[df["median_home_value"].isna() | (df["median_home_value"] <= home_value_max)]
+    if rent_max is not None:
+        df = df[df["median_gross_rent"].isna() | (df["median_gross_rent"] <= rent_max)]
+    return df
+
+
 def fetch(force_refresh: bool = False) -> pd.DataFrame:
     """
     Return a DataFrame of all US Census places with coordinates and key ACS fields.

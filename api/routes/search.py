@@ -173,10 +173,23 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     cfg = _build_config(req)
 
-    # Step 1: Census
+    # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
     await asyncio.sleep(0)
-    candidates = census.load(cfg.POPULATION, cfg.REGION, cfg.STATES, cfg.METRO_MAX)
+    candidates = census.load(
+        population=cfg.POPULATION,
+        regions=cfg.REGION,
+        states=cfg.STATES,
+        metro_max=cfg.METRO_MAX,
+        home_value_max=cfg.HOME_VALUE_MAX,
+        rent_max=cfg.MEDIAN_RENT_MAX,
+    )
+    candidates = state_tax.enrich(candidates)
+
+    if candidates.empty:
+        yield event("error", "No places matched your filters — try loosening population or region.")
+        return
+
     yield event("census", f"Found {len(candidates):,} candidate places")
     await asyncio.sleep(0)
 
