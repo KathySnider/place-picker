@@ -8,6 +8,7 @@ import asyncio
 import json
 import math
 import types
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator
 
 import pandas as pd
@@ -17,6 +18,31 @@ from fastapi.responses import StreamingResponse
 from api.models import SearchRequest
 
 router = APIRouter()
+
+_executor = ThreadPoolExecutor(max_workers=4)
+
+
+async def _run(fn, *args):
+    """
+    Run a blocking pipeline function in a thread pool, yielding SSE heartbeat
+    comments every 15 s so HTTP/2 proxies don't drop long-running connections.
+
+    Usage in an async generator:
+        result, hbs = _run(some_fn, arg1, arg2)
+        async for hb in hbs:
+            yield hb
+    """
+    loop = asyncio.get_running_loop()
+    fut = loop.run_in_executor(_executor, fn, *args)
+
+    async def _heartbeats():
+        while True:
+            done, _ = await asyncio.wait({fut}, timeout=15)
+            if done:
+                return
+            yield ": heartbeat\n\n"
+
+    return fut, _heartbeats()
 
 
 def _nan_to_none(val):
@@ -203,49 +229,53 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     # Step 2b: Coastal proximity
     yield event("coastal", "Loading coastal proximity data...")
-    await asyncio.sleep(0)
-    candidates = coastal.enrich(candidates)
-    await asyncio.sleep(0)
+    fut, hbs = _run(coastal.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
 
     # Step 3: OSM walkability
-    yield event("osm", f"Fetching walkability data (cached where available)...")
-    await asyncio.sleep(0)
-    candidates = osm.enrich(candidates)
+    yield event("osm", "Fetching walkability data (cached where available)...")
+    fut, hbs = _run(osm.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
     yield event("osm", "Walkability data ready")
-    await asyncio.sleep(0)
 
     # Step 4: Daymet climate
     yield event("daymet", "Fetching climate data...")
-    await asyncio.sleep(0)
-    candidates = daymet.enrich(candidates)
+    fut, hbs = _run(daymet.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
     yield event("daymet", "Climate data ready")
-    await asyncio.sleep(0)
 
     # Step 5: PRISM
     yield event("prism", "Applying PRISM climate normals...")
-    await asyncio.sleep(0)
-    candidates = prism.enrich(candidates)
+    fut, hbs = _run(prism.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
     yield event("prism", "PRISM data ready")
-    await asyncio.sleep(0)
 
     # Step 6: ERA5
     yield event("era5", "Applying ERA5 warming trends...")
-    await asyncio.sleep(0)
-    candidates = era5.enrich(candidates)
+    fut, hbs = _run(era5.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
     yield event("era5", "ERA5 data ready")
-    await asyncio.sleep(0)
 
-    # Step 7: State tax
+    # Step 7: State tax (fast — static lookup, no I/O)
     yield event("tax", "Loading state tax data...")
-    await asyncio.sleep(0)
     candidates = state_tax.enrich(candidates)
-    await asyncio.sleep(0)
 
     # Step 8: Facilities
     yield event("facilities", "Loading hospital, college, library data...")
-    await asyncio.sleep(0)
-    candidates = facilities.enrich(candidates)
-    await asyncio.sleep(0)
+    fut, hbs = _run(facilities.enrich, candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
 
     # Step 9: Climate priority chain + filters
     yield event("score", "Applying climate filters and scoring...")
@@ -270,11 +300,15 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     # Step 10: OSM detail + trails for top N
     top_n = ranked.head(cfg.RESULTS).copy()
     yield event("detail", f"Fetching amenity detail for top {len(top_n)} places...")
-    await asyncio.sleep(0)
-    top_n = osm_detail.enrich(top_n)
-    top_n = osm_trails.enrich(top_n)
+    fut, hbs = _run(osm_detail.enrich, top_n)
+    async for hb in hbs:
+        yield hb
+    top_n = await fut
+    fut, hbs = _run(osm_trails.enrich, top_n)
+    async for hb in hbs:
+        yield hb
+    top_n = await fut
     yield event("detail", "Amenity and trail data ready")
-    await asyncio.sleep(0)
 
     # Serialize results
     places = [_row_to_place(row) for _, row in top_n.iterrows()]
