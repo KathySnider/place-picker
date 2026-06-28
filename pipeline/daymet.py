@@ -117,7 +117,7 @@ def _fetch_place(lat: float, lon: float) -> dict | None:
     }
 
 
-def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
+def enrich(candidates: pd.DataFrame, stop_event=None, cache_only: bool = False) -> pd.DataFrame:
     """
     Add Daymet climate columns to the candidates DataFrame.
 
@@ -158,6 +158,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
 
     if todo.empty:
         print("[daymet] All candidates already cached and current.")
+    elif cache_only:
+        print(f"[daymet] cache_only=True — skipping fetch for {len(todo)} uncached places")
+        todo = todo.iloc[0:0]
     else:
         n_new   = len(new_geoids & todo_geoids)
         n_stale = len(stale_geoids & todo_geoids)
