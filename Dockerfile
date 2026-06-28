@@ -8,6 +8,15 @@ RUN npm run build
 FROM python:3.11-slim AS app
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin \
+    libgdal-dev \
+    libhdf5-dev \
+    libnetcdf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV GDAL_VERSION=3.6.2
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
