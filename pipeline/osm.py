@@ -268,7 +268,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
                   "lifestyle_800m", "lifestyle_1600m",
                   "anchor_lat", "anchor_lng"]
 
+    print(f"[osm] Reading cache for {len(candidates):,} candidates...")
     cache = _db.read_cache("osm_cache", CACHE_PATH, cache_cols + ["fetched_at"])
+    print(f"[osm] Cache has {len(cache):,} rows")
     for col in cache_cols[1:]:
         if col not in cache.columns:
             cache[col] = None
@@ -288,8 +290,12 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
     todo_geoids = new_geoids | (stale_geoids & candidate_geoids)
     todo = candidates[candidates["geoid"].isin(todo_geoids)].copy()
 
+    print(f"[osm] {len(fresh_geoids & candidate_geoids):,} fresh in cache, "
+          f"{len(new_geoids & candidate_geoids):,} new, "
+          f"{len(stale_geoids & candidate_geoids):,} stale")
+
     if todo.empty:
-        print("[osm] All candidates already cached.")
+        print("[osm] All candidates already cached — skipping Overpass.")
     else:
         n_new   = len(new_geoids  & candidate_geoids)
         n_stale = len(stale_geoids & candidate_geoids)

@@ -69,17 +69,36 @@ def engine():
     return _engine()
 
 
-def read_cache(table: str, parquet_path: str, fallback_cols: list) -> pd.DataFrame:
-    engine = _engine()
-    if engine is not None:
+def read_cache(
+    table: str,
+    parquet_path: str,
+    fallback_cols: list,
+    geoids: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Read a cache table. If geoids is provided, only fetch those rows (keyed
+    lookup via WHERE geoid = ANY(:ids)) instead of reading the whole table.
+    """
+    eng = _engine()
+    if eng is not None:
         try:
-            if inspect(engine).has_table(table):
-                return pd.read_sql_table(table, engine)
+            if inspect(eng).has_table(table):
+                if geoids is not None:
+                    with eng.connect() as conn:
+                        return pd.read_sql(
+                            text(f'SELECT * FROM "{table}" WHERE geoid = ANY(:ids)'),
+                            conn,
+                            params={"ids": geoids},
+                        )
+                return pd.read_sql_table(table, eng)
         except Exception as e:
             print(f"[db] read_cache({table}) failed: {e}")
         return pd.DataFrame(columns=fallback_cols)
     if os.path.exists(parquet_path):
-        return pd.read_parquet(parquet_path)
+        df = pd.read_parquet(parquet_path)
+        if geoids is not None:
+            df = df[df["geoid"].isin(geoids)]
+        return df
     return pd.DataFrame(columns=fallback_cols)
 
 
