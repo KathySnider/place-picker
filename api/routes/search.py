@@ -221,21 +221,22 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("census", f"Found {len(candidates):,} candidate places")
     await asyncio.sleep(0)
 
-    # Step 2: Rough score & trim
+    # Step 2: OSM walkability on full filtered set (cache only — fast DB read)
+    # Uncached places get null scores and rank lower; cached places float to the top
+    yield event("osm", "Loading walkability data...")
+    fut, hbs = _run(lambda df: osm.enrich(df, cache_only=True), candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
+    yield event("osm", f"Walkability data ready")
+
+    # Step 3: Rough score & trim — now uses real walkability where available
     yield event("filter", "Applying filters and rough scoring...")
     await asyncio.sleep(0)
     rough = search_module._rough_score(candidates, cfg)
     candidates = rough.head(cfg.CANDIDATES).copy()
     yield event("filter", f"Top {len(candidates):,} candidates selected for enrichment")
     await asyncio.sleep(0)
-
-    # Step 3: OSM walkability (cache only — uncached places get null walkability scores)
-    yield event("osm", "Loading walkability data...")
-    fut, hbs = _run(lambda df: osm.enrich(df, cache_only=True), candidates)
-    async for hb in hbs:
-        yield hb
-    candidates = await fut
-    yield event("osm", "Walkability data ready")
 
     # Step 4: Daymet climate (cache only)
     yield event("daymet", "Loading climate data...")
