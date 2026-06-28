@@ -85,7 +85,9 @@ def load(
         sql = f"SELECT * FROM census_places WHERE {' AND '.join(clauses)}"
         try:
             with engine.connect() as conn:
-                df = pd.read_sql(text(sql), conn, params=params)
+                result = conn.execute(text(sql), params)
+                rows = result.fetchall()
+                df = pd.DataFrame(rows, columns=list(result.keys()))
             print(f"[census] SQL query returned {len(df):,} places")
             return df
         except Exception as e:

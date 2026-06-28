@@ -15,6 +15,7 @@ COPY . .
 COPY --from=frontend /app/web/dist ./web/dist
 
 ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]

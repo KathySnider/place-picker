@@ -83,14 +83,16 @@ def read_cache(
     if eng is not None:
         try:
             if inspect(eng).has_table(table):
-                if geoids is not None:
-                    with eng.connect() as conn:
-                        return pd.read_sql(
+                with eng.connect() as conn:
+                    if geoids is not None:
+                        result = conn.execute(
                             text(f'SELECT * FROM "{table}" WHERE geoid = ANY(:ids)'),
-                            conn,
-                            params={"ids": geoids},
+                            {"ids": geoids},
                         )
-                return pd.read_sql_table(table, eng)
+                    else:
+                        result = conn.execute(text(f'SELECT * FROM "{table}"'))
+                    rows = result.fetchall()
+                    return pd.DataFrame(rows, columns=list(result.keys()))
         except Exception as e:
             print(f"[db] read_cache({table}) failed: {e}")
         return pd.DataFrame(columns=fallback_cols)
