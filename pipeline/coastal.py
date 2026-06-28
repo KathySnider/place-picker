@@ -36,6 +36,8 @@ COAST_URLS  = [
 COASTAL_THRESHOLD_MI = 25   # "coastal town" label
 COASTAL_COLS = ["geoid", "coast_distance_miles", "is_coastal"]
 
+_COASTLINE_CACHE: np.ndarray | None = None  # module-level vertex cache
+
 
 # ---------------------------------------------------------------------------
 # Shapefile parser — reads .shp PolyLine records (type 3) without extra deps
@@ -119,9 +121,35 @@ def _min_dist_miles(lat: float, lon: float,
     return float((R * 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))).min())
 
 
+def _load_coastline_cached() -> np.ndarray:
+    """Load coastline vertices, caching in memory for the lifetime of the process."""
+    global _COASTLINE_CACHE
+    if _COASTLINE_CACHE is None:
+        _COASTLINE_CACHE = _load_coastline()
+    return _COASTLINE_CACHE
+
+
+def _read_coastal_cache(geoids: list[str]) -> pd.DataFrame:
+    """Read only the requested geoids from the coastal cache."""
+    engine = _db.engine()
+    if engine is not None:
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                return pd.read_sql(
+                    text("SELECT geoid, coast_distance_miles, is_coastal "
+                         "FROM coastal_cache WHERE geoid = ANY(:ids)"),
+                    conn, params={"ids": geoids}
+                )
+        except Exception as e:
+            print(f"[coastal] SQL read failed ({e}), falling back to full read")
+    return _db.read_cache("coastal_cache", CACHE_PATH, COASTAL_COLS)
+
+
 def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
     """Add coast_distance_miles and is_coastal columns to candidates."""
-    cache = _db.read_cache("coastal_cache", CACHE_PATH, COASTAL_COLS)
+    all_geoids = candidates["geoid"].tolist()
+    cache = _read_coastal_cache(all_geoids)
 
     cached_geoids = set(cache["geoid"].tolist())
     needed = candidates[~candidates["geoid"].isin(cached_geoids)].copy()
@@ -130,7 +158,7 @@ def enrich(candidates: pd.DataFrame) -> pd.DataFrame:
         print("[coastal] All candidates already in coastal cache.")
     else:
         print(f"[coastal] Computing coast distance for {len(needed):,} candidates...")
-        pts = _load_coastline()
+        pts = _load_coastline_cached()
         coast_lats = pts[:, 0]
         coast_lons = pts[:, 1]
 
