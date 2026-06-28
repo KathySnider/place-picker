@@ -82,7 +82,9 @@ def read_cache(
     eng = _engine()
     if eng is not None:
         try:
-            if inspect(eng).has_table(table):
+            has = inspect(eng).has_table(table)
+            print(f"[db] read_cache({table}): has_table={has}")
+            if has:
                 with eng.connect() as conn:
                     if geoids is not None:
                         result = conn.execute(
@@ -91,10 +93,12 @@ def read_cache(
                         )
                     else:
                         result = conn.execute(text(f'SELECT * FROM "{table}"'))
+                    keys = list(result.keys())
                     rows = result.fetchall()
-                    return pd.DataFrame(rows, columns=list(result.keys()))
+                    print(f"[db] read_cache({table}): got {len(rows)} rows, {len(keys)} cols")
+                    return pd.DataFrame(rows, columns=keys)
         except Exception as e:
-            print(f"[db] read_cache({table}) failed: {e}")
+            print(f"[db] read_cache({table}) failed: {e}", flush=True)
         return pd.DataFrame(columns=fallback_cols)
     if os.path.exists(parquet_path):
         df = pd.read_parquet(parquet_path)

@@ -60,38 +60,23 @@ def load(
 
     engine = _db.engine()
     if engine is not None:
-        from sqlalchemy import text
-        clauses = [
-            "population >= :pop_min",
-            "population <= :pop_max",
-        ]
-        params: dict = {
-            "pop_min": population["min"],
-            "pop_max": population["max"],
-        }
-        if all_states:
-            clauses.append("state_name = ANY(:states)")
-            params["states"] = all_states
-        if metro_max is not None:
-            clauses.append("(cbsa_pop IS NULL OR cbsa_pop <= :metro_max)")
-            params["metro_max"] = metro_max
-        if home_value_max is not None:
-            clauses.append("(median_home_value IS NULL OR median_home_value <= :hv_max)")
-            params["hv_max"] = home_value_max
-        if rent_max is not None:
-            clauses.append("(median_gross_rent IS NULL OR median_gross_rent <= :rent_max)")
-            params["rent_max"] = rent_max
-
-        sql = f"SELECT * FROM census_places WHERE {' AND '.join(clauses)}"
         try:
-            with engine.connect() as conn:
-                result = conn.execute(text(sql), params)
-                rows = result.fetchall()
-                df = pd.DataFrame(rows, columns=list(result.keys()))
-            print(f"[census] SQL query returned {len(df):,} places")
-            return df
+            df = _db.read_cache("census_places", CACHE_PATH, [])
+            if not df.empty:
+                before = len(df)
+                df = df[df["population"].between(population["min"], population["max"])]
+                if all_states:
+                    df = df[df["state_name"].isin(all_states)]
+                if metro_max is not None and "cbsa_pop" in df.columns:
+                    df = df[df["cbsa_pop"].isna() | (df["cbsa_pop"] <= metro_max)]
+                if home_value_max is not None:
+                    df = df[df["median_home_value"].isna() | (df["median_home_value"] <= home_value_max)]
+                if rent_max is not None:
+                    df = df[df["median_gross_rent"].isna() | (df["median_gross_rent"] <= rent_max)]
+                print(f"[census] Filtered {before:,} → {len(df):,} places from Postgres cache")
+                return df
         except Exception as e:
-            print(f"[census] SQL load failed ({e}), falling back to full fetch")
+            print(f"[census] Postgres read failed ({e}), falling back to full fetch")
 
     # Fallback: read full table and filter in Python
     df = fetch()
