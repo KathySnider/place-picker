@@ -159,7 +159,7 @@ export const REGION_STATES: Record<string, string[]> = {
 }
 
 export const DEFAULT_PREFERENCES: SearchPreferences = {
-  regions: ['Northeast', 'New England', 'Midwest', 'Great Lakes', 'Mountain'],
+  regions: ['Northeast', 'New England', 'Midwest', 'Great Lakes', 'West', 'Mountain', 'Pacific Coast'],
   states: [],
   metroMax: 250000,
   popMin: 2000,
@@ -191,3 +191,4 @@ export const DEFAULT_PREFERENCES: SearchPreferences = {
   units: 'imperial',
   resultCount: 25,
 }
+

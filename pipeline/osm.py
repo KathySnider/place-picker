@@ -255,7 +255,7 @@ def _query_overpass(lat: float, lon: float) -> dict:
 # Public enrich() function
 # ---------------------------------------------------------------------------
 
-def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
+def enrich(candidates: pd.DataFrame, stop_event=None, cache_only: bool = False) -> pd.DataFrame:
     """
     Add practical_800m, practical_1600m, lifestyle_800m, lifestyle_1600m,
     anchor_lat, anchor_lng columns to the candidates DataFrame.
@@ -296,6 +296,9 @@ def enrich(candidates: pd.DataFrame, stop_event=None) -> pd.DataFrame:
 
     if todo.empty:
         print("[osm] All candidates already cached — skipping Overpass.")
+    elif cache_only:
+        print(f"[osm] cache_only=True — skipping Overpass fetch for {len(todo)} uncached places")
+        todo = todo.iloc[0:0]  # empty, skip the fetch loop
     else:
         n_new   = len(new_geoids  & candidate_geoids)
         n_stale = len(stale_geoids & candidate_geoids)
