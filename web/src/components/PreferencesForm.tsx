@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { REGIONS } from '../types'
+import { REGIONS, REGION_STATES } from '../types'
 import type { SearchPreferences } from '../types'
 
 interface Props {
@@ -114,6 +114,7 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
           {REGIONS.map(r => (
             <button key={r} type="button"
               onClick={() => toggleRegion(r)}
+              title={REGION_STATES[r]?.join(', ')}
               className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 p.regions.includes(r)
                   ? 'bg-emerald-600 text-white border-emerald-600'

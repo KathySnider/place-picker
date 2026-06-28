@@ -142,6 +142,22 @@ export const REGIONS = [
   'Pacific',
 ]
 
+export const REGION_STATES: Record<string, string[]> = {
+  'New England':    ['Maine', 'Vermont', 'New Hampshire', 'Massachusetts', 'Rhode Island', 'Connecticut'],
+  'Mid-Atlantic':   ['New York', 'New Jersey', 'Pennsylvania', 'Delaware', 'Maryland', 'District of Columbia'],
+  'Great Lakes':    ['Ohio', 'Michigan', 'Indiana', 'Illinois', 'Wisconsin', 'Minnesota'],
+  'Plains':         ['North Dakota', 'South Dakota', 'Nebraska', 'Kansas', 'Iowa', 'Missouri'],
+  'Southeast':      ['Virginia', 'West Virginia', 'North Carolina', 'South Carolina', 'Georgia', 'Florida', 'Tennessee', 'Alabama', 'Mississippi', 'Kentucky'],
+  'South Central':  ['Texas', 'Oklahoma', 'Arkansas', 'Louisiana'],
+  'Mountain':       ['Montana', 'Idaho', 'Wyoming', 'Colorado', 'Utah', 'Nevada', 'Arizona', 'New Mexico'],
+  'Pacific Coast':  ['Washington', 'Oregon', 'California'],
+  'Pacific':        ['Washington', 'Oregon', 'California', 'Alaska', 'Hawaii'],
+  'Northeast':      ['Maine', 'Vermont', 'New Hampshire', 'Massachusetts', 'Rhode Island', 'Connecticut', 'New York', 'New Jersey', 'Pennsylvania', 'Delaware', 'Maryland', 'District of Columbia'],
+  'Midwest':        ['Ohio', 'Michigan', 'Indiana', 'Illinois', 'Wisconsin', 'Minnesota', 'North Dakota', 'South Dakota', 'Nebraska', 'Kansas', 'Iowa', 'Missouri'],
+  'South':          ['Virginia', 'West Virginia', 'North Carolina', 'South Carolina', 'Georgia', 'Florida', 'Tennessee', 'Alabama', 'Mississippi', 'Kentucky', 'Texas', 'Oklahoma', 'Arkansas', 'Louisiana'],
+  'West':           ['Montana', 'Idaho', 'Wyoming', 'Colorado', 'Utah', 'Nevada', 'Arizona', 'New Mexico', 'Washington', 'Oregon', 'California'],
+}
+
 export const DEFAULT_PREFERENCES: SearchPreferences = {
   regions: ['Northeast', 'New England', 'Midwest', 'Great Lakes', 'Mountain'],
   states: [],
