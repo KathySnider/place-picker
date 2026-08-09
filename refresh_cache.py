@@ -22,7 +22,9 @@ import time
 import traceback
 from datetime import datetime
 
-from pipeline import census, osm, daymet, prism, era5, facilities, state_tax
+import db as _db
+
+from pipeline import census, osm, daymet, prism, era5, facilities, state_tax, osm_detail, osm_trails
 from regions import CONUS
 
 
@@ -95,6 +97,21 @@ def run_pass():
         _log(f"Facilities done — {candidates['hospital_distance_miles'].notna().sum():,} places enriched")
     except Exception:
         _log("Facilities pass failed:")
+        traceback.print_exc()
+
+    # Step 7: Re-freshen any osm_detail and osm_trails rows already in cache
+    # (can't pre-populate — we don't know which places will rank top 25,
+    #  but we can keep previously-seen top results fresh)
+    _log("Refreshing stale osm_detail entries...")
+    try:
+        detail_cache = _db.read_cache("osm_detail_cache", osm_detail.CACHE_PATH, osm_detail.DETAIL_COLS)
+        if not detail_cache.empty:
+            candidates_subset = candidates[candidates["geoid"].isin(detail_cache["geoid"])]
+            if not candidates_subset.empty:
+                osm_detail.enrich(candidates_subset)
+                _log(f"osm_detail refreshed {len(candidates_subset):,} cached places")
+    except Exception:
+        _log("osm_detail refresh failed:")
         traceback.print_exc()
 
     elapsed = time.time() - t0
