@@ -176,6 +176,7 @@ def _build_config(req: SearchRequest):
         "median_rent":     0.0,
         "summer_trend":    req.weights.summerTrend,
         "winter_trend":    req.weights.winterTrend,
+        "population":      req.weights.population,
     }
     cfg.CLIMATE = {
         "prefer_cold_winters": req.preferColdWinters,
@@ -204,8 +205,19 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
     await asyncio.sleep(0)
+    # Use a wider population range for the initial load so towns slightly
+    # outside the preferred range can still be scored and ranked softly.
+    pop_weight = cfg.WEIGHTS.get("population", 0.5)
+    if pop_weight == 0:
+        pop_filter = {"min": 500, "max": 500_000}   # weight=0: ignore size entirely
+    else:
+        slack = max(0.0, 1.0 - pop_weight)           # weight=1: exact range; weight=0.5: 50% slack
+        pop_filter = {
+            "min": max(500,     int(cfg.POPULATION["min"] * (1 - slack))),
+            "max": min(500_000, int(cfg.POPULATION["max"] * (1 + slack))),
+        }
     candidates = census.load(
-        population=cfg.POPULATION,
+        population=pop_filter,
         regions=cfg.REGION,
         states=cfg.STATES,
         metro_max=cfg.METRO_MAX,

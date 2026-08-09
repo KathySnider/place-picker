@@ -34,6 +34,7 @@ export interface SearchPreferences {
     homeValue: number
     summerTrend: number
     winterTrend: number
+    population: number
   }
 
   // Preferences
@@ -183,6 +184,7 @@ export const DEFAULT_PREFERENCES: SearchPreferences = {
     homeValue: 0.0,
     summerTrend: 0.5,
     winterTrend: 0.2,
+    population: 0.5,
   },
   preferColdWinters: true,
   preferCoolSummers: true,

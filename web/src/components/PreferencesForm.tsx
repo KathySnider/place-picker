@@ -106,6 +106,10 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
           <Slider label="Maximum population" value={p.popMax} min={10000} max={100000} step={1000}
             onChange={v => set('popMax', v)} format={v => v.toLocaleString()} />
         </div>
+        <Slider label="How much does size matter?"
+          value={p.weights.population} min={0} max={1} step={0.1}
+          onChange={v => set('weights', { ...p.weights, population: v })}
+          format={v => v === 0 ? 'Ignore' : v === 1 ? 'Required' : v <= 0.4 ? 'A little' : v <= 0.7 ? 'Somewhat' : 'A lot'} />
       </Section>
 
       {/* Regions */}

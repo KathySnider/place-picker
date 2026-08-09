@@ -11,6 +11,7 @@ class Weights(BaseModel):
     homeValue:      float = 0.0
     summerTrend:    float = 0.5
     winterTrend:    float = 0.2
+    population:     float = 0.5
 
 class SearchRequest(BaseModel):
     regions:         list[str]       = ["Northeast", "New England", "Midwest", "Great Lakes", "Mountain"]

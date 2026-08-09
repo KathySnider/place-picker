@@ -127,6 +127,22 @@ def _rough_score(df: pd.DataFrame, cfg) -> pd.DataFrame:
         rough += _norm("median_gross_rent", False) * weights["median_rent"]
         n += weights["median_rent"]
 
+    pop_weight = weights.get("population", 0)
+    if pop_weight > 0 and "population" in scored.columns:
+        pop_min = cfg.POPULATION["min"]
+        pop_max = cfg.POPULATION["max"]
+        pop = pd.to_numeric(scored["population"], errors="coerce")
+        # Score 1.0 if inside preferred range, falling off outside it
+        in_range = (pop >= pop_min) & (pop <= pop_max)
+        below = pop < pop_min
+        above = pop > pop_max
+        pop_score = pd.Series(1.0, index=scored.index)
+        pop_score[below] = (pop[below] / pop_min).clip(0, 1)
+        pop_score[above] = (pop_max / pop[above]).clip(0, 1)
+        pop_score[pop.isna()] = 0.5
+        rough += pop_score * pop_weight
+        n += pop_weight
+
     if n == 0:
         if "pct_no_vehicle" in scored.columns and scored["pct_no_vehicle"].notna().any():
             rough = _norm("pct_no_vehicle", True)
