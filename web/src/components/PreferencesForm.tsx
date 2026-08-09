@@ -82,7 +82,7 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
         )}
 
         <Slider
-          label="Maximum summer temperature"
+          label="Maximum average July high"
           value={p.summerMaxF ?? 95} min={65} max={100} step={1}
           onChange={v => set('summerMaxF', v)}
           format={v => `${v}°F`}
@@ -139,7 +139,7 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
         <Slider label="Walkability — lifestyle (restaurants, parks, cafes...)"
           value={p.weights.lifestyle800m} min={0} max={1}
           onChange={v => setW('lifestyle800m', v)} format={v => `${(v * 100).toFixed(0)}%`} />
-        <Slider label="Cool summers"
+        <Slider label="Cool summers (low July high temp)"
           value={p.weights.summerTemp} min={0} max={1}
           onChange={v => setW('summerTemp', v)} format={v => `${(v * 100).toFixed(0)}%`} />
         <Slider label="Climate stability (slow warming)"
