@@ -106,10 +106,6 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
           <Slider label="Maximum population" value={p.popMax} min={10000} max={100000} step={1000}
             onChange={v => set('popMax', v)} format={v => v.toLocaleString()} />
         </div>
-        <Slider label="How much does size matter?"
-          value={p.weights.population} min={0} max={1} step={0.1}
-          onChange={v => set('weights', { ...p.weights, population: v })}
-          format={v => v === 0 ? 'Ignore' : v === 1 ? 'Required' : v <= 0.4 ? 'A little' : v <= 0.7 ? 'Somewhat' : 'A lot'} />
       </Section>
 
       {/* Regions */}
@@ -132,7 +128,11 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
       </Section>
 
       {/* Priorities */}
-      <Section title="What matters most? (drag sliders)">
+      <Section title="What matters most?">
+        <p className="text-sm text-slate-500 mb-4">
+          Rate how much each factor matters to you — independently. They don't need to add up to anything.
+          A higher value means that factor has more influence on the ranking.
+        </p>
         <Slider label="Walkability — practical (grocery, pharmacy, bank...)"
           value={p.weights.practical800m} min={0} max={1}
           onChange={v => setW('practical800m', v)} format={v => `${(v * 100).toFixed(0)}%`} />
@@ -148,6 +148,9 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
         <Slider label="Affordability (home value)"
           value={p.weights.homeValue} min={0} max={1}
           onChange={v => setW('homeValue', v)} format={v => `${(v * 100).toFixed(0)}%`} />
+        <Slider label="Town size (prefer towns in your population range)"
+          value={p.weights.population} min={0} max={1} step={0.1}
+          onChange={v => setW('population', v)} format={v => `${(v * 100).toFixed(0)}%`} />
       </Section>
 
       {/* Options */}
