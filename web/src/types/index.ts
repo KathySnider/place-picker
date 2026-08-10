@@ -92,6 +92,10 @@ export interface Place {
   winterSource: string | null
   annualPrecipMm: number | null
 
+  // PRISM detail
+  prismJulyTmaxF: number | null
+  prismJanTminF: number | null
+
   // ERA5 trends
   summerTrendFDec: number | null
   winterTrendFDec: number | null

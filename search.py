@@ -167,7 +167,8 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     out["snow_era5_in"]      = _col("snow_mm_recent") * 10 / 25.4
     out["snow_best"]         = _col("prism_snow_in").fillna(out["snow_era5_in"]).fillna(_col("snowfall_in_approx"))
     out["winter_temp_best"]  = _col("prism_winter_f").fillna(_col("winter_f_recent")).fillna(_col("winter_temp_f"))
-    out["summer_temp_f"]     = _col("prism_summer_f").fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
+    # Summer heat: July average daily high (tmax) preferred over JJA tmean or ERA5/Daymet
+    out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
     if getattr(cfg, "SNOW_MIN_IN", None):
         out = out[out["snow_best"].isna() | (out["snow_best"] >= cfg.SNOW_MIN_IN)]

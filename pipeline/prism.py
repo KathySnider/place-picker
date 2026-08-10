@@ -10,18 +10,23 @@ snow and elevation gradients — making it significantly more accurate than
 Daymet or ERA5 for small towns in complex terrain.
 
 Strategy:
-    1. Download 24 ZIP files (12 monthly ppt + 12 monthly tmean) from the
-       PRISM web service — one-time ~300MB download, no login required.
+    1. Download 48 ZIP files (12 monthly ppt + 12 monthly tmean + 12 monthly tmax
+       + 12 monthly tmin) from the PRISM web service — one-time ~600MB download,
+       no login required.
     2. Extract GeoTIFFs and keep them in data/raw/prism/.
     3. For each candidate, sample the nearest grid point from each raster.
     4. Derive snowfall: sum monthly ppt where tmean < SNOW_THRESHOLD_C.
-    5. Compute summer (JJA) and winter (DJF) mean temps.
-    6. Cache results to data/processed/prism_cache.parquet.
+    5. Compute summer (JJA) and winter (DJF) mean temps (tmean).
+    6. Extract July average daily high (tmax) as the primary summer heat measure.
+    7. Extract January average daily low (tmin) as the primary winter cold measure.
+    8. Cache results to data/processed/prism_cache.parquet.
 
 Output columns:
     prism_snow_in      -- estimated annual snowfall depth (inches)
-    prism_summer_f     -- mean summer (JJA) daily mean temp (deg F)
-    prism_winter_f     -- mean winter (DJF) daily mean temp (deg F)
+    prism_summer_f     -- mean summer (JJA) daily mean temp (deg F, tmean)
+    prism_winter_f     -- mean winter (DJF) daily mean temp (deg F, tmean)
+    prism_july_tmax_f  -- July average daily high temp (deg F, tmax)
+    prism_jan_tmin_f   -- January average daily low temp (deg F, tmin)
 
 Requires:
     pip install rasterio
@@ -56,7 +61,7 @@ SNOW_THRESHOLD_C = -2.0
 WINTER_MONTHS = [12, 1, 2]   # DJF
 SUMMER_MONTHS = [6, 7, 8]    # JJA
 
-PRISM_COLS = ["geoid", "prism_snow_in", "prism_summer_f", "prism_winter_f"]
+PRISM_COLS = ["geoid", "prism_snow_in", "prism_summer_f", "prism_winter_f", "prism_july_tmax_f", "prism_jan_tmin_f"]
 
 
 # ---------------------------------------------------------------------------
@@ -68,10 +73,10 @@ def _tif_path(element: str, month: str) -> str:
 
 
 def _download_rasters():
-    """Download monthly ppt and tmean normals from PRISM data directory."""
+    """Download monthly ppt, tmean, and tmax normals from PRISM data directory."""
     os.makedirs(RASTER_DIR, exist_ok=True)
     needed = []
-    for element in ("ppt", "tmean"):
+    for element in ("ppt", "tmean", "tmax", "tmin"):
         for month in MONTHS:
             if not os.path.exists(_tif_path(element, month)):
                 needed.append((element, month))
@@ -80,7 +85,7 @@ def _download_rasters():
         return
 
     print(f"[prism] Downloading {len(needed)} raster files from PRISM "
-          f"(one-time ~72 MB)...")
+          f"(one-time ~600 MB)...")
     for i, (element, month) in enumerate(needed, 1):
         # Filename format: prism_ppt_us_25m_202001_avg_30y.zip
         filename = f"prism_{element}_us_25m_2020{month}_avg_30y.zip"
@@ -114,12 +119,14 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
     except ImportError:
         raise ImportError("rasterio not installed -- run: pip install rasterio")
 
-    # Load all 24 rasters into memory (4km CONUS ~ 10MB each uncompressed)
+    # Load all 36 rasters into memory (4km CONUS ~ 10MB each uncompressed)
     print("[prism] Loading rasters into memory...")
-    ppt   = {}  # month -> (data array, transform, nodata)
+    ppt   = {}
     tmean = {}
+    tmax  = {}
+    tmin  = {}
 
-    for element, store in (("ppt", ppt), ("tmean", tmean)):
+    for element, store in (("ppt", ppt), ("tmean", tmean), ("tmax", tmax), ("tmin", tmin)):
         for month in MONTHS:
             with rasterio.open(_tif_path(element, month)) as ds:
                 store[month] = {
@@ -131,6 +138,9 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
                 if ds.nodata is not None:
                     store[month]["data"][store[month]["data"] == ds.nodata] = np.nan
 
+    JULY = "07"
+    JAN  = "01"
+
     print(f"[prism] Extracting values for {len(candidates):,} candidates...")
     rows = []
     for row in candidates.itertuples():
@@ -138,7 +148,9 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
             rows.append({"geoid": row.geoid,
                          "prism_snow_in": np.nan,
                          "prism_summer_f": np.nan,
-                         "prism_winter_f": np.nan})
+                         "prism_winter_f": np.nan,
+                         "prism_july_tmax_f": np.nan,
+                         "prism_jan_tmin_f": np.nan})
             continue
 
         monthly_ppt   = []
@@ -147,7 +159,6 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
         for month in MONTHS:
             p = ppt[month]
             t = tmean[month]
-            # Convert lat/lng to row/col using affine transform
             col, r = ~p["transform"] * (row.lng, row.lat)
             col, r = int(col), int(r)
             h, w = p["data"].shape
@@ -158,26 +169,40 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
                 monthly_ppt.append(np.nan)
                 monthly_tmean.append(np.nan)
 
-        mp = np.array(monthly_ppt)    # mm precip per month (12 values)
-        mt = np.array(monthly_tmean)  # deg C mean temp per month (12 values)
+        # July tmax
+        tx = tmax[JULY]
+        col, r = ~tx["transform"] * (row.lng, row.lat)
+        col, r = int(col), int(r)
+        h, w = tx["data"].shape
+        july_tmax_c = tx["data"][r, col] if (0 <= r < h and 0 <= col < w) else np.nan
 
-        # Snowfall: ppt in months where tmean < threshold, converted to depth
+        # January tmin
+        tn = tmin[JAN]
+        col, r = ~tn["transform"] * (row.lng, row.lat)
+        col, r = int(col), int(r)
+        h, w = tn["data"].shape
+        jan_tmin_c = tn["data"][r, col] if (0 <= r < h and 0 <= col < w) else np.nan
+
+        mp = np.array(monthly_ppt)
+        mt = np.array(monthly_tmean)
+
         snow_ppt_mm = np.nansum(
             np.where((mt < SNOW_THRESHOLD_C) & ~np.isnan(mp), mp, 0)
         )
-        snow_in = round(snow_ppt_mm * 10 / 25.4, 1)  # mm SWE -> snow depth inches
+        snow_in = round(snow_ppt_mm * 10 / 25.4, 1)
 
-        # Summer / winter mean temps (month indices are 0-based here)
         sum_idx = [m - 1 for m in SUMMER_MONTHS]
         win_idx = [m - 1 for m in WINTER_MONTHS]
         summer_c = np.nanmean(mt[sum_idx]) if not np.all(np.isnan(mt[sum_idx])) else np.nan
         winter_c = np.nanmean(mt[win_idx]) if not np.all(np.isnan(mt[win_idx])) else np.nan
 
         rows.append({
-            "geoid":          row.geoid,
-            "prism_snow_in":  snow_in if not np.isnan(snow_in) else np.nan,
-            "prism_summer_f": round(_c_to_f(summer_c), 1) if not np.isnan(summer_c) else np.nan,
-            "prism_winter_f": round(_c_to_f(winter_c), 1) if not np.isnan(winter_c) else np.nan,
+            "geoid":             row.geoid,
+            "prism_snow_in":     snow_in if not np.isnan(snow_in) else np.nan,
+            "prism_summer_f":    round(_c_to_f(summer_c), 1) if not np.isnan(summer_c) else np.nan,
+            "prism_winter_f":    round(_c_to_f(winter_c), 1) if not np.isnan(winter_c) else np.nan,
+            "prism_july_tmax_f": round(_c_to_f(july_tmax_c), 1) if not np.isnan(july_tmax_c) else np.nan,
+            "prism_jan_tmin_f":  round(_c_to_f(jan_tmin_c), 1) if not np.isnan(jan_tmin_c) else np.nan,
         })
 
     return pd.DataFrame(rows)

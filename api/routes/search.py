@@ -74,8 +74,7 @@ def _row_to_place(row: pd.Series) -> dict:
     snow_src   = "PRISM" if snow_prism is not None else ("ERA5" if gf("snow_era5_in") is not None else "Daymet")
     wi_prism   = gf("prism_winter_f")
     wi_src     = "PRISM" if wi_prism is not None else "Daymet"
-    su_prism   = gf("prism_summer_f")
-    su_src     = "PRISM" if su_prism is not None else "Daymet"
+    su_src     = "PRISM tmax" if gf("prism_july_tmax_f") is not None else ("PRISM" if gf("prism_summer_f") is not None else ("ERA5" if gf("summer_f_recent") is not None else "Daymet"))
 
     return {
         "geoid":              g("geoid"),
@@ -103,6 +102,8 @@ def _row_to_place(row: pd.Series) -> dict:
         "winterSource":    wi_src,
         "annualPrecipMm":  gf("annual_precip_mm"),
 
+        "prismJulyTmaxF":  gf("prism_july_tmax_f"),
+        "prismJanTminF":   gf("prism_jan_tmin_f"),
         "summerTrendFDec": gf("summer_trend_f_dec"),
         "winterTrendFDec": gf("winter_trend_f_dec"),
         "summerF1980s":    gf("summer_f_1980s"),
