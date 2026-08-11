@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Place, SearchPreferences } from '../types'
 
 interface Props {
@@ -30,10 +31,34 @@ function fmtTrend(f: number | null) {
   return `${sign}${f.toFixed(2)}°F/dec`
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Tooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-block ml-1">
+      <button
+        type="button"
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        className="text-slate-300 hover:text-slate-500 text-xs leading-none"
+        aria-label="More info"
+      >ⓘ</button>
+      {visible && (
+        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 w-64 bg-slate-800 text-white text-xs rounded px-2 py-1.5 z-10 shadow-lg">
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function Section({ title, tooltip, children }: { title: string; tooltip?: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{title}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+        {title}{tooltip && <Tooltip text={tooltip} />}
+      </h3>
       {children}
     </div>
   )
@@ -143,7 +168,7 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
 
         {/* Amenity checklist */}
         {amenities && (
-          <Section title="Amenities within 1 mile (OSM)">
+          <Section title="Amenities within 1 mile (OpenStreetMap)" tooltip="Whether each amenity type was found within 1 mile of the OpenStreetMap town center. OSM coverage varies — small towns may be missing some tags even if the amenity exists.">
             <div className="flex flex-wrap gap-2">
               <AmenityBadge label="Grocery"     present={amenities.grocery} />
               <AmenityBadge label="Pharmacy"    present={amenities.pharmacy} />
@@ -164,7 +189,7 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
         )}
 
         {/* Facilities */}
-        <Section title="Nearby Facilities">
+        <Section title="Nearby Facilities (federal data)" tooltip="Straight-line distances from the Census place centroid to the nearest hospital (CMS), college (NCES), and library (IMLS). Uses a different center point than the OSM checklist above, so small differences are normal.">
           <Row label="Nearest hospital"    value={place.hospitalDistanceMiles != null ? `${place.hospitalDistanceMiles.toFixed(1)} mi (${place.hospitalsWithin30mi} within 30mi)` : '—'} />
           <Row label="Nearest college"     value={place.collegeDistanceMiles  != null ? `${place.collegeDistanceMiles.toFixed(1)} mi (${place.collegesWithin30mi} within 30mi)` : '—'} />
           <Row label="Nearest library"     value={place.libraryDistanceMiles  != null ? `${place.libraryDistanceMiles.toFixed(1)} mi (${place.librariesWithin10mi} within 10mi)` : '—'} />
