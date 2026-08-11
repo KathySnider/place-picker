@@ -100,11 +100,17 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
 
       {/* Town size */}
       <Section title="Town size">
-        <div className="grid grid-cols-2 gap-6">
-          <Slider label="Minimum population" value={p.popMin} min={1000} max={10000} step={500}
-            onChange={v => set('popMin', v)} format={v => v.toLocaleString()} />
-          <Slider label="Maximum population" value={p.popMax} min={10000} max={100000} step={1000}
-            onChange={v => set('popMax', v)} format={v => v.toLocaleString()} />
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-slate-600">Population range</span>
+            <span className="font-medium text-slate-800">{p.popMin.toLocaleString()} to {p.popMax.toLocaleString()}</span>
+          </div>
+          <input type="range" min={1000} max={10000} step={500} value={p.popMin}
+            onChange={e => set('popMin', Math.min(parseFloat(e.target.value), p.popMax - 1000))}
+            className="w-full accent-emerald-600" />
+          <input type="range" min={10000} max={200000} step={1000} value={p.popMax}
+            onChange={e => set('popMax', Math.max(parseFloat(e.target.value), p.popMin + 1000))}
+            className="w-full accent-emerald-600" />
         </div>
       </Section>
 
