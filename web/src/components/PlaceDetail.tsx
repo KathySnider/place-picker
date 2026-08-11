@@ -109,10 +109,10 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
 
         {/* Climate */}
         <Section title="Climate">
+          <Row label={`July avg high (${place.summerSource ?? ''})`}  value={fmtTemp(place.summerTempF, prefs.units)} />
+          <Row label={`Jan avg low (${place.prismJanTminF != null ? 'PRISM tmin' : place.winterSource ?? ''})`}  value={fmtTemp(place.prismJanTminF ?? place.winterTempBestF, prefs.units)} />
+          <Row label="Annual precip (rain + snow)"                  value={fmtPrecip(place.annualPrecipMm, prefs.units)} />
           <Row label={`Snowfall (${place.snowSource ?? ''})`}       value={fmtSnow(place.snowBestIn, prefs.units)} highlight />
-          <Row label={`Summer mean (${place.summerSource ?? ''})`}  value={fmtTemp(place.summerTempF, prefs.units)} />
-          <Row label={`Winter mean (${place.winterSource ?? ''})`}  value={fmtTemp(place.winterTempBestF, prefs.units)} />
-          <Row label="Annual precip"                                 value={fmtPrecip(place.annualPrecipMm, prefs.units)} />
         </Section>
 
         {/* Warming trends */}
