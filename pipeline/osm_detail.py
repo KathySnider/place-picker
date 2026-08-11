@@ -34,8 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import db as _db
 
 CACHE_PATH   = "data/processed/osm_detail_cache.parquet"
-RATE_LIMIT   = 3.0
-RETRY_WAIT   = 15
+RATE_LIMIT   = 2.0
+RETRY_WAIT   = 10
 MAX_RETRIES  = 3
 CACHE_DAYS   = 180   # refresh after 6 months
 

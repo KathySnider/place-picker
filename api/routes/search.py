@@ -39,7 +39,7 @@ def _run(fn, *args):
 
     async def _heartbeats():
         while True:
-            done, _ = await asyncio.wait({fut}, timeout=15)
+            done, _ = await asyncio.wait({fut}, timeout=8)
             if done:
                 return
             yield ": heartbeat\n\n"
