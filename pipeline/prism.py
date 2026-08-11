@@ -220,8 +220,17 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     """
     cache = _db.read_cache("prism_cache", CACHE_PATH, PRISM_COLS)
 
+    # Add any new columns introduced since the cache was last written
+    for col in PRISM_COLS:
+        if col not in cache.columns:
+            cache[col] = np.nan
+
     cached_geoids = set(cache["geoid"].tolist())
-    needed = set(candidates["geoid"].tolist()) - cached_geoids
+    # Also re-process rows that are missing the new tmax/tmin columns
+    missing_new_cols = set(
+        cache.loc[cache[["prism_july_tmax_f", "prism_jan_tmin_f"]].isna().all(axis=1), "geoid"].tolist()
+    ) & cached_geoids
+    needed = (set(candidates["geoid"].tolist()) - cached_geoids) | (missing_new_cols & set(candidates["geoid"].tolist()))
 
     if not needed:
         print("[prism] All candidates already in PRISM cache.")
@@ -262,4 +271,5 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         except OSError:
             pass
 
-    return candidates.merge(cache[PRISM_COLS], on="geoid", how="left")
+    available = [c for c in PRISM_COLS if c in cache.columns]
+    return candidates.merge(cache[available], on="geoid", how="left")
