@@ -248,7 +248,7 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         print(f"[prism] Computing PRISM climate for {len(needed):,} candidates...")
         _download_rasters()
 
-        todo   = candidates[candidates["geoid"].isin(needed)].copy()
+        todo   = candidates[candidates["geoid"].isin(needed)].drop_duplicates(subset="geoid").copy()
         new_df = _process_candidates(todo)
 
         cache = pd.concat([cache, new_df], ignore_index=True)
