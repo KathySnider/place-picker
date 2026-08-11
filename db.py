@@ -108,6 +108,35 @@ def read_cache(
     return pd.DataFrame(columns=fallback_cols)
 
 
+def write_cache_replace(table: str, parquet_path: str, df: pd.DataFrame) -> None:
+    """Full table replace — use when rewriting all rows (avoids upsert conflicts)."""
+    eng = _engine()
+    if eng is not None:
+        try:
+            chunk_size = 500
+            first = True
+            for i in range(0, len(df), chunk_size):
+                chunk = df.iloc[i:i + chunk_size]
+                if first:
+                    chunk.to_sql(table, eng, if_exists="replace", index=False)
+                    first = False
+                    if "geoid" in df.columns:
+                        with eng.begin() as conn:
+                            conn.execute(text(
+                                f'CREATE INDEX IF NOT EXISTS "{table}_geoid_idx" ON "{table}" (geoid)'
+                            ))
+                else:
+                    with eng.begin() as conn:
+                        chunk.to_sql(table, conn, if_exists="append", index=False)
+            print(f"[db] write_cache_replace({table}): wrote {len(df):,} rows")
+        except Exception as e:
+            print(f"[db] write_cache_replace({table}) failed: {e}")
+            raise
+    else:
+        os.makedirs(os.path.dirname(parquet_path), exist_ok=True)
+        df.to_parquet(parquet_path, index=False)
+
+
 def write_cache(table: str, parquet_path: str, df: pd.DataFrame) -> None:
     engine = _engine()
     if engine is not None:

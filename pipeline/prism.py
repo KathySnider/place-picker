@@ -145,6 +145,19 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
     tx_sample = tmax[JULY]
     print(f"[prism] tmax July shape={tx_sample['data'].shape} nodata={tx_sample['nodata']} "
           f"min={np.nanmin(tx_sample['data']):.1f} max={np.nanmax(tx_sample['data']):.1f}")
+    # Diagnostic: test first candidate lookup
+    _first = candidates.iloc[0]
+    _tx = tmax[JULY]
+    _col, _r = ~_tx["transform"] * (_first.lng, _first.lat)
+    _col, _r = int(_col), int(_r)
+    _h, _w = _tx["data"].shape
+    _val = _tx["data"][_r, _col] if (0 <= _r < _h and 0 <= _col < _w) else "OUT OF BOUNDS"
+    print(f"[prism] tmax test: lat={_first.lat} lng={_first.lng} -> row={_r} col={_col} bounds=({_h},{_w}) val={_val}")
+    _pp = ppt[JULY]
+    _col2, _r2 = ~_pp["transform"] * (_first.lng, _first.lat)
+    _col2, _r2 = int(_col2), int(_r2)
+    _val2 = _pp["data"][_r2, _col2] if (0 <= _r2 < _h and 0 <= _col2 < _w) else "OUT OF BOUNDS"
+    print(f"[prism] ppt  test: lat={_first.lat} lng={_first.lng} -> row={_r2} col={_col2} val={_val2}")
     rows = []
     for row in candidates.itertuples():
         if pd.isna(row.lat) or pd.isna(row.lng):
@@ -252,7 +265,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         new_df = _process_candidates(todo)
 
         cache = pd.concat([cache, new_df], ignore_index=True)
-        _db.write_cache("prism_cache", CACHE_PATH, cache)
+        cache = cache.drop_duplicates(subset="geoid", keep="last")
+        _db.write_cache_replace("prism_cache", CACHE_PATH, cache)
         # Write sidecar with dataset provenance
         meta = {
             "cache_updated":  str(date.today()),
