@@ -53,11 +53,30 @@ All preferences live in `config.py`:
   - Citation: PRISM Climate Group, Oregon State University, https://prism.oregonstate.edu, data created 4 Feb 2014
   - License: Free for non-commercial use with attribution
 
+#### Cool summers score
+- Variable: monthly `tmax` (average daily maximum temperature)
+- Period: 1991–2020 30-year normal
+- Month: July
+- Answers: *"How hot are typical summer afternoons?"*
+
+#### Snowfall & winter temperature
+- Variable: monthly `ppt` (precipitation) and `tmean` (mean temperature)
+- Snowfall estimated from precipitation in months where tmean < −2°C
+- Winter temperature: December–February mean
+
 ### Copernicus Climate Change Service (C3S) / ECMWF
 - **ERA5 Reanalysis** — historical climate data (1980–2024) for computing summer/winter warming trends (°F/decade)
   - Source: https://cds.climate.copernicus.eu
   - Citation: Hersbach, H., et al. (2020). The ERA5 global reanalysis. *Quarterly Journal of the Royal Meteorological Society*, 146(730), 1999–2049. https://doi.org/10.1002/qj.3803
   - License: Copernicus License (free for any purpose with attribution). Contains modified Copernicus Climate Change Service information 2024. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.
+
+#### Climate stability score
+- Variable: `2m_temperature` — monthly mean of daily mean 2m air temperature
+- Season: June–August (summer average per year)
+- Period: 1980–2024 (45 years)
+- Method: linear regression slope, reported as °F/decade
+- Negative values = location has cooled slightly over the period (legitimate — common near the Great Lakes due to lake-effect moderation)
+- Answers: *"How has the overall summer climate been changing?"*
 
 ### Daymet
 - **Single-Pixel API** — daily surface weather at 1km resolution; used as fallback for temperature and precipitation
