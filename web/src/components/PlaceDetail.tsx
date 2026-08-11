@@ -45,7 +45,7 @@ function Tooltip({ text }: { text: string }) {
         aria-label="More info"
       >ⓘ</button>
       {visible && (
-        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 w-64 bg-slate-800 text-white text-xs rounded px-2 py-1.5 z-10 shadow-lg">
+        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 w-64 bg-slate-800 text-white text-xs normal-case tracking-normal font-normal rounded px-2 py-1.5 z-10 shadow-lg">
           {text}
         </span>
       )}
