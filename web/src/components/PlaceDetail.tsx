@@ -119,12 +119,12 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
         {place.summerTrendFDec != null && (
           <Section title="ERA5 Warming Trends (daily mean)">
             <Row
-              label="Summer trend"
-              value={`${fmtTemp(place.summerF1980s, prefs.units)} → ${fmtTemp(place.summerFRecent, prefs.units)} (${fmtTrend(place.summerTrendFDec)})`}
+              label="Summer: 1980s baseline → 2015–2024 avg"
+              value={`${fmtTemp(place.summerF1980s, prefs.units)} → ${fmtTemp(place.summerFRecent, prefs.units)} (${fmtTrend(place.summerTrendFDec)} trend)`}
             />
             <Row
-              label="Winter trend"
-              value={`${fmtTemp(place.winterF1980s, prefs.units)} → ${fmtTemp(place.winterFRecent, prefs.units)} (${fmtTrend(place.winterTrendFDec)})`}
+              label="Winter: 1980s baseline → 2015–2024 avg"
+              value={`${fmtTemp(place.winterF1980s, prefs.units)} → ${fmtTemp(place.winterFRecent, prefs.units)} (${fmtTrend(place.winterTrendFDec)} trend)`}
             />
           </Section>
         )}
