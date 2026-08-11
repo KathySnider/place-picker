@@ -142,6 +142,9 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
     JAN  = "01"
 
     print(f"[prism] Extracting values for {len(candidates):,} candidates...")
+    tx_sample = tmax[JULY]
+    print(f"[prism] tmax July shape={tx_sample['data'].shape} nodata={tx_sample['nodata']} "
+          f"min={np.nanmin(tx_sample['data']):.1f} max={np.nanmax(tx_sample['data']):.1f}")
     rows = []
     for row in candidates.itertuples():
         if pd.isna(row.lat) or pd.isna(row.lng):
@@ -175,6 +178,8 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
         col, r = int(col), int(r)
         h, w = tx["data"].shape
         july_tmax_c = tx["data"][r, col] if (0 <= r < h and 0 <= col < w) else np.nan
+        if not np.isnan(july_tmax_c) and july_tmax_c < -100:
+            july_tmax_c = np.nan  # nodata sentinel not caught by rasterio
 
         # January tmin
         tn = tmin[JAN]
@@ -182,6 +187,8 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
         col, r = int(col), int(r)
         h, w = tn["data"].shape
         jan_tmin_c = tn["data"][r, col] if (0 <= r < h and 0 <= col < w) else np.nan
+        if not np.isnan(jan_tmin_c) and jan_tmin_c < -100:
+            jan_tmin_c = np.nan  # nodata sentinel not caught by rasterio
 
         mp = np.array(monthly_ppt)
         mt = np.array(monthly_tmean)
