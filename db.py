@@ -123,13 +123,21 @@ def write_cache(table: str, parquet_path: str, df: pd.DataFrame) -> None:
                             conn.execute(text(
                                 f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{col}" {pg_t}'
                             ))
-                    # Upsert: delete the rows we're about to write, then insert
+                    # Upsert: delete first, then insert — in chunks to avoid
+                    # hitting Postgres parameter limits on large DataFrames
                     if "geoid" in df.columns:
-                        conn.execute(
-                            text(f'DELETE FROM "{table}" WHERE geoid = ANY(:ids)'),
-                            {"ids": df["geoid"].tolist()},
-                        )
-                    df.to_sql(table, conn, if_exists="append", index=False)
+                        chunk_size = 500
+                        geoids = df["geoid"].tolist()
+                        for i in range(0, len(geoids), chunk_size):
+                            chunk = geoids[i:i + chunk_size]
+                            conn.execute(
+                                text(f'DELETE FROM "{table}" WHERE geoid = ANY(:ids)'),
+                                {"ids": chunk},
+                            )
+                        for i in range(0, len(df), chunk_size):
+                            df.iloc[i:i + chunk_size].to_sql(table, conn, if_exists="append", index=False)
+                    else:
+                        df.to_sql(table, conn, if_exists="append", index=False)
             else:
                 # First write: let pandas create the table, then add a geoid index
                 df.to_sql(table, engine, if_exists="replace", index=False)
