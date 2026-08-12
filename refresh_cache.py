@@ -31,7 +31,7 @@ from regions import CONUS
 # Broad criteria — catch everything a user might plausibly search for.
 # Tighter searches will always find a cached subset of this universe.
 POPULATION = {"min": 1000, "max": 150000}
-STATES     = list(CONUS)   # all contiguous US states (passed as states=, not regions=)
+STATES     = list(CONUS) + ["Alaska", "Hawaii"]   # all US states including AK and HI
 METRO_MAX  = None          # no metro filter — cache everything
 
 
