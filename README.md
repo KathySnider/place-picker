@@ -75,7 +75,7 @@ All preferences live in `config.py`:
 - Season: June–August (summer average per year)
 - Period: 1980–2024 (45 years)
 - Method: linear regression slope, reported as °F/decade
-- Negative values = location has cooled slightly over the period (legitimate — common near the Great Lakes due to lake-effect moderation)
+- Negative values indicate that the fitted summer trend was slightly downward over 1980–2024. Local/regional trends can differ substantially from the broader warming trend.
 - Answers: *"How has the overall summer climate been changing?"*
 
 ### Daymet
