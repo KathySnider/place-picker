@@ -140,17 +140,17 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
           <Row label={`Snowfall (${place.snowSource ?? ''})`}       value={fmtSnow(place.snowBestIn, prefs.units)} highlight />
         </Section>
 
-        {/* Warming trends */}
+        {/* Climate trends */}
         {place.summerTrendFDec != null && (
-          <Section title="ERA5 Warming Trends (daily mean)">
-            <Row
-              label="Summer: 1980s baseline → 2015–2024 avg"
-              value={`${fmtTemp(place.summerF1980s, prefs.units)} → ${fmtTemp(place.summerFRecent, prefs.units)} (${fmtTrend(place.summerTrendFDec)} trend)`}
-            />
-            <Row
-              label="Winter: 1980s baseline → 2015–2024 avg"
-              value={`${fmtTemp(place.winterF1980s, prefs.units)} → ${fmtTemp(place.winterFRecent, prefs.units)} (${fmtTrend(place.winterTrendFDec)} trend)`}
-            />
+          <Section title="ERA5 climate trends (1980–2024 daily mean temperatures)">
+            <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mt-1 mb-1">Summer</div>
+            <Row label="1980–94 average" value={fmtTemp(place.summerF1980s, prefs.units)} />
+            <Row label="2015–24 average" value={fmtTemp(place.summerFRecent, prefs.units)} />
+            <Row label="1980–2024 trend" value={fmtTrend(place.summerTrendFDec)} />
+            <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mt-3 mb-1">Winter</div>
+            <Row label="1980–94 average" value={fmtTemp(place.winterF1980s, prefs.units)} />
+            <Row label="2015–24 average" value={fmtTemp(place.winterFRecent, prefs.units)} />
+            <Row label="1980–2024 trend" value={fmtTrend(place.winterTrendFDec)} />
           </Section>
         )}
 
