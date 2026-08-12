@@ -142,7 +142,7 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
         <Slider label="Walkability — practical (grocery, pharmacy, bank...)"
           value={p.weights.practical800m} min={0} max={1}
           onChange={v => setW('practical800m', v)} format={v => `${(v * 100).toFixed(0)}%`} />
-        <Slider label="Walkability — lifestyle (restaurants, parks, cafes...)"
+        <Slider label="Walkability — community & lifestyle (library, restaurants, parks, cafes...)"
           value={p.weights.lifestyle800m} min={0} max={1}
           onChange={v => setW('lifestyle800m', v)} format={v => `${(v * 100).toFixed(0)}%`} />
         <Slider label="Cool summers (low July high temp)"
@@ -213,6 +213,19 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
       </div>
 
       <div className="pt-4">
+        <div className="flex items-center justify-end gap-3 mb-3">
+          <span className="text-sm text-slate-500">Show top</span>
+          <select
+            value={p.resultCount}
+            onChange={e => set('resultCount', parseInt(e.target.value))}
+            className="border border-slate-300 rounded px-2 py-1 text-sm text-slate-700"
+          >
+            {[10, 25, 50, 100].map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+          <span className="text-sm text-slate-500">results</span>
+        </div>
         <button type="submit"
           disabled={p.regions.length === 0}
           className="w-full py-3 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-semibold rounded-lg transition-colors text-lg">

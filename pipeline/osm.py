@@ -13,8 +13,8 @@ Two radii:
     1600m — ~one-mile walk
 
 Two categories:
-    practical — groceries, pharmacy, medical, bank, ATM, post office, library
-    lifestyle — restaurants, cafes, bars, shops, parks, galleries, transit, etc.
+    practical — groceries, pharmacy, medical, bank, ATM, post office
+    lifestyle — library, restaurants, cafes, bars, shops, parks, galleries, transit, etc.
 
 One API call per place fetches place nodes + all amenity nodes within 2200m.
 Python finds the nearest place node and recounts from there at 800/1600m.
@@ -105,7 +105,7 @@ def _classify(tags: dict) -> str | None:
     if amenity in ("bank", "atm", "post_office"):
         return "practical"
     if amenity in ("library",):
-        return "practical"
+        return "lifestyle"
     if amenity in ("supermarket", "grocery", "convenience"):
         return "practical"
     if shop in ("supermarket", "convenience", "greengrocer",

@@ -157,7 +157,7 @@ export function PlaceDetail({ place, prefs, onBack }: Props) {
         {/* Walkability */}
         <Section title="Walkability">
           <Row label="Practical amenities (½mi / 1mi)" value={`${place.practical800m ?? '—'} / ${place.practical1600m ?? '—'}`} highlight />
-          <Row label="Lifestyle amenities (½mi / 1mi)" value={`${place.lifestyle800m ?? '—'} / ${place.lifestyle1600m ?? '—'}`} />
+          <Row label="Community & lifestyle amenities (½mi / 1mi)" value={`${place.lifestyle800m ?? '—'} / ${place.lifestyle1600m ?? '—'}`} />
           {place.trailMiles10mi != null && (
             <Row label="Trails within 10mi"  value={`${place.trailMiles10mi.toFixed(1)} mi`} />
           )}
