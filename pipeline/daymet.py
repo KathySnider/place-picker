@@ -54,7 +54,7 @@ def _latest_complete_year() -> int:
     otherwise use the year before that to be safe.
     """
     today = date.today()
-    return today.year - 1 if today.month >= 6 else today.year - 2
+    return today.year - 2 if today.month >= 6 else today.year - 3
 
 def _years() -> list[int]:
     last = _latest_complete_year()
