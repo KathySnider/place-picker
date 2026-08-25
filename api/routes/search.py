@@ -310,7 +310,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     # Step 10: OSM detail + trails for top N
     top_n = ranked.head(cfg.RESULTS).copy()
     yield event("detail", f"Fetching amenity detail for top {len(top_n)} places...")
-    fut, hbs = _run(osm_detail.enrich, top_n)
+    fut, hbs = _run(lambda df: osm_detail.enrich(df, cache_only=True), top_n)
     async for hb in hbs:
         yield hb
     top_n = await fut

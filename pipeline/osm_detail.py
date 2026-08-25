@@ -36,12 +36,13 @@ import db as _db
 CACHE_PATH   = "data/processed/osm_detail_cache.parquet"
 RATE_LIMIT   = 2.0
 RETRY_WAIT   = 10
-MAX_RETRIES  = 3
+MAX_RETRIES  = 2   # fail faster in web context; worker uses more patience
 CACHE_DAYS   = 180   # refresh after 6 months
 
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
 ]
 
 RADIUS = 1600  # meters — ~1 mile
@@ -220,11 +221,14 @@ def _fetch_one(lat: float, lon: float) -> dict | None:
     }
 
 
-def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
+def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     """
     Add per-amenity presence columns to the top results DataFrame.
     Uses anchor_lat/anchor_lng from OSM cache if available, else lat/lng.
     Caches results; refreshes rows older than CACHE_DAYS.
+
+    cache_only=True: treat previously-failed (null amenity) rows as fresh so
+    the web path doesn't retry them — the background worker will refresh them.
     """
     cache = _db.read_cache("osm_detail_cache", CACHE_PATH, DETAIL_COLS)
     if "detail_fetched_date" not in cache.columns:
@@ -236,14 +240,18 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
     cached = cache.copy()
     cached["detail_fetched_date"] = pd.to_datetime(cached["detail_fetched_date"])
 
-    # A row is stale if it's too old OR if any required boolean column is NULL
-    # (NULL means the column was added after the row was originally fetched)
     bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
     present_bool_cols = [c for c in bool_cols if c in cached.columns]
-    has_missing = (
-        cached[present_bool_cols].isnull().any(axis=1)
-        if present_bool_cols else pd.Series(False, index=cached.index)
-    )
+
+    # In cache_only mode, null-amenity rows (previously failed) count as fresh —
+    # the worker will retry them. In live mode, they're stale and get retried.
+    if cache_only:
+        has_missing = pd.Series(False, index=cached.index)
+    else:
+        has_missing = (
+            cached[present_bool_cols].isnull().any(axis=1)
+            if present_bool_cols else pd.Series(False, index=cached.index)
+        )
 
     fresh_geoids = set(
         cached.loc[
@@ -268,7 +276,11 @@ def enrich(top_results: pd.DataFrame) -> pd.DataFrame:
                   end=" ", flush=True)
             result = _fetch_one(lat, lon)
             if result is None:
-                print("error — skipping")
+                print("error — caching as null so next search skips retry")
+                # Cache with null amenities so the worker refreshes later
+                new_rows.append({"geoid": row.geoid,
+                                 "detail_fetched_date": today,
+                                 **{col: None for col in DETAIL_COLS if col.startswith("has_")}})
                 continue
             new_rows.append({"geoid": row.geoid,
                              "detail_fetched_date": today,
