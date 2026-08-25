@@ -269,6 +269,16 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     else:
         print(f"[osm_detail] Fetching amenity detail for {len(needed)} places...")
         new_rows = []
+
+        def _flush(rows):
+            if not rows:
+                return
+            new_df = pd.DataFrame(rows)
+            refreshed = set(new_df["geoid"].tolist())
+            up = cache[~cache["geoid"].isin(refreshed)]
+            merged = pd.concat([up, new_df], ignore_index=True)
+            _db.write_cache("osm_detail_cache", CACHE_PATH, merged)
+
         for i, row in enumerate(needed, 1):
             lat = getattr(row, "anchor_lat", None) or row.lat
             lon = getattr(row, "anchor_lng", None) or row.lng
@@ -277,26 +287,26 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             result = _fetch_one(lat, lon)
             if result is None:
                 print("error — caching as null so next search skips retry")
-                # Cache with null amenities so the worker refreshes later
                 new_rows.append({"geoid": row.geoid,
                                  "detail_fetched_date": today,
                                  **{col: None for col in DETAIL_COLS if col.startswith("has_")}})
-                continue
-            new_rows.append({"geoid": row.geoid,
-                             "detail_fetched_date": today,
-                             **result})
-            print("done")
+            else:
+                new_rows.append({"geoid": row.geoid,
+                                 "detail_fetched_date": today,
+                                 **result})
+                print("done")
+
+            # Save every 5 places so progress isn't lost on connection drop
+            if i % 5 == 0:
+                _flush(new_rows)
+                print(f"[osm_detail] Saved progress ({i}/{len(needed)})")
+
             if i < len(needed):
                 time.sleep(RATE_LIMIT)
 
+        _flush(new_rows)
         if new_rows:
-            new_df = pd.DataFrame(new_rows)
-            # Remove stale rows for geoids we just refreshed
-            refreshed = set(new_df["geoid"].tolist())
-            cache = cache[~cache["geoid"].isin(refreshed)]
-            cache = pd.concat([cache, new_df], ignore_index=True)
-            _db.write_cache("osm_detail_cache", CACHE_PATH, cache)
-            print(f"[osm_detail] Cache updated: {len(new_df)} places")
+            print(f"[osm_detail] Cache updated: {len(new_rows)} places")
 
     bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
     keep_cols = ["geoid"] + bool_cols
