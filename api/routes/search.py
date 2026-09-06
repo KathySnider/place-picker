@@ -312,16 +312,27 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("score", "Applying climate filters and scoring...")
     await asyncio.sleep(0)
     candidates = search_module._apply_climate_chain(candidates, cfg)
+    # Diagnostic: show Valdez climate values before filtering
+    if "place_name" in candidates.columns:
+        v = candidates[candidates["place_name"].str.contains("Valdez", case=False, na=False)]
+        if not v.empty:
+            r = v.iloc[0]
+            print(f"[trace] Valdez climate values: summer_temp_f={r.get('summer_temp_f')} "
+                  f"prism_july_tmax_f={r.get('prism_july_tmax_f')} "
+                  f"summer_f_recent={r.get('summer_f_recent')} "
+                  f"summer_trend_f_dec={r.get('summer_trend_f_dec')} "
+                  f"snow_best={r.get('snow_best')} "
+                  f"winter_temp_best={r.get('winter_temp_best')}")
     _trace(candidates, "climate chain")
     ranked = score.rank(candidates, cfg.WEIGHTS, cfg.CLIMATE)
     ranked = ranked.drop_duplicates(subset="geoid", keep="first")
     _trace(ranked, "final ranking")
 
-    # Walkability filter
+    # Walkability filter — allow nulls through (uncached places get no OSM data yet)
     if cfg.WALK_MIN_800M > 0:
-        ranked = ranked[ranked["practical_800m"] >= cfg.WALK_MIN_800M]
+        ranked = ranked[ranked["practical_800m"].isna() | (ranked["practical_800m"] >= cfg.WALK_MIN_800M)]
     if cfg.WALK_MIN_1600M > 0:
-        ranked = ranked[ranked["practical_1600m"] >= cfg.WALK_MIN_1600M]
+        ranked = ranked[ranked["practical_1600m"].isna() | (ranked["practical_1600m"] >= cfg.WALK_MIN_1600M)]
     _trace(ranked, "walkability filter")
 
     if ranked.empty:
