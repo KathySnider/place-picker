@@ -162,7 +162,7 @@ def _build_config(req: SearchRequest):
     cfg.WINTER_MIN_F    = req.winterMinF
     cfg.SUMMER_TREND_MAX = req.summerTrendMax
     cfg.WINTER_TREND_MAX = None
-    cfg.CANDIDATES      = 2400
+    cfg.CANDIDATES      = 5000
     cfg.RESULTS         = req.resultCount
     cfg.UNITS           = req.units
     cfg.WEIGHTS = {
