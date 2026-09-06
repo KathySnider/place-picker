@@ -170,16 +170,31 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     # Summer heat: July average daily high (tmax) preferred over JJA tmean or ERA5/Daymet
     out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
+    def _valdez_trace(step):
+        v = out[out["place_name"].str.contains("Valdez", case=False, na=False)] if "place_name" in out.columns else pd.DataFrame()
+        if v.empty:
+            print(f"[valdez] dropped before {step}")
+        else:
+            r = v.iloc[0]
+            print(f"[valdez] alive at {step}: snow_best={r.get('snow_best')} summer_temp_f={r.get('summer_temp_f')} "
+                  f"winter_temp_best={r.get('winter_temp_best')} summer_trend_f_dec={r.get('summer_trend_f_dec')}")
+
+    _valdez_trace("snow_min filter")
     if getattr(cfg, "SNOW_MIN_IN", None):
         out = out[out["snow_best"].isna() | (out["snow_best"] >= cfg.SNOW_MIN_IN)]
+    _valdez_trace("snow_max filter")
     if getattr(cfg, "SNOW_MAX_IN", None):
         out = out[out["snow_best"].isna() | (out["snow_best"] <= cfg.SNOW_MAX_IN)]
+    _valdez_trace("summer_max filter")
     if getattr(cfg, "SUMMER_MAX_F", None):
         out = out[out["summer_temp_f"].isna() | (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
+    _valdez_trace("winter_min filter")
     if getattr(cfg, "WINTER_MIN_F", None):
         out = out[out["winter_temp_best"].isna() | (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
+    _valdez_trace("summer_trend filter")
     if getattr(cfg, "SUMMER_TREND_MAX", None):
         out = out[out["summer_trend_f_dec"].isna() | (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
+    _valdez_trace("winter_trend filter")
     if getattr(cfg, "WINTER_TREND_MAX", None):
         out = out[out["winter_trend_f_dec"].isna() | (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
 
