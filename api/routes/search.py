@@ -203,6 +203,25 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     cfg = _build_config(req)
 
+    def _trace(df: pd.DataFrame, step: str):
+        """Log whether Talkeetna is present at this pipeline step."""
+        if "place_name" in df.columns:
+            match = df[df["place_name"].str.contains("Talkeetna", case=False, na=False)]
+        elif "geoid" in df.columns:
+            match = df  # fallback
+        else:
+            return
+        if match.empty:
+            print(f"[trace] Talkeetna: NOT present after {step}")
+        else:
+            row = match.iloc[0]
+            extras = []
+            for col in ["rough_score", "composite_score", "practical_800m", "summer_temp_f",
+                        "prism_july_tmax_f", "summer_trend_f_dec", "population"]:
+                if col in row.index:
+                    extras.append(f"{col}={row[col]}")
+            print(f"[trace] Talkeetna: present after {step} — {', '.join(extras)}")
+
     # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
     await asyncio.sleep(0)
@@ -226,6 +245,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         rent_max=cfg.MEDIAN_RENT_MAX,
     )
     candidates = state_tax.enrich(candidates)
+    _trace(candidates, "census load")
 
     if candidates.empty:
         yield event("error", "No places matched your filters — try loosening population or region.")
@@ -248,7 +268,9 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("filter", "Applying filters and rough scoring...")
     await asyncio.sleep(0)
     rough = search_module._rough_score(candidates, cfg)
+    _trace(rough, "rough score (pre-trim)")
     candidates = rough.head(cfg.CANDIDATES).copy()
+    _trace(candidates, f"rough score trim (top {cfg.CANDIDATES})")
     yield event("filter", f"{len(candidates):,} candidates selected for enrichment")
     await asyncio.sleep(0)
 
@@ -291,14 +313,17 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("score", "Applying climate filters and scoring...")
     await asyncio.sleep(0)
     candidates = search_module._apply_climate_chain(candidates, cfg)
+    _trace(candidates, "climate chain")
     ranked = score.rank(candidates, cfg.WEIGHTS, cfg.CLIMATE)
     ranked = ranked.drop_duplicates(subset="geoid", keep="first")
+    _trace(ranked, "final ranking")
 
     # Walkability filter
     if cfg.WALK_MIN_800M > 0:
         ranked = ranked[ranked["practical_800m"] >= cfg.WALK_MIN_800M]
     if cfg.WALK_MIN_1600M > 0:
         ranked = ranked[ranked["practical_1600m"] >= cfg.WALK_MIN_1600M]
+    _trace(ranked, "walkability filter")
 
     if ranked.empty:
         yield event("error", "No places met all filters. Try relaxing your criteria.")
@@ -309,6 +334,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     # Step 10: OSM detail + trails for top N
     top_n = ranked.head(cfg.RESULTS).copy()
+    _trace(top_n, f"final top {cfg.RESULTS}")
     yield event("detail", f"Fetching amenity detail for top {len(top_n)} places...")
     fut, hbs = _run(lambda df: osm_detail.enrich(df, cache_only=True), top_n)
     async for hb in hbs:
