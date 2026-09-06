@@ -71,7 +71,8 @@ def _row_to_place(row: pd.Series) -> dict:
 
     # Determine climate sources
     snow_prism = gf("prism_snow_in")
-    snow_src   = "PRISM" if snow_prism is not None else ("ERA5" if gf("snow_era5_in") is not None else "Daymet")
+    snow_noaa  = gf("noaa_snow_in")
+    snow_src   = "PRISM" if snow_prism is not None else ("NOAA" if snow_noaa is not None else ("ERA5" if gf("snow_era5_in") is not None else "Daymet"))
     wi_prism   = gf("prism_winter_f")
     wi_src     = "PRISM" if wi_prism is not None else "Daymet"
     su_src     = "PRISM tmax" if gf("prism_july_tmax_f") is not None else ("PRISM" if gf("prism_summer_f") is not None else ("ERA5" if gf("summer_f_recent") is not None else "Daymet"))
@@ -198,7 +199,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     await asyncio.sleep(0)
 
     # Import pipeline modules lazily (they're heavy)
-    from pipeline import census, osm, daymet, era5, prism, score, state_tax, facilities, osm_detail, osm_trails
+    from pipeline import census, osm, daymet, era5, prism, noaa_normals, score, state_tax, facilities, osm_detail, osm_trails
     import search as search_module
 
     cfg = _build_config(req)
@@ -207,7 +208,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         """Log whether traced places are present at this pipeline step."""
         if "place_name" not in df.columns:
             return
-        for name in ("Talkeetna", "Valdez"):
+        for name in ("Talkeetna", "Valdez", "Wasilla", "Palmer", "Homer"):
             match = df[df["place_name"].str.contains(name, case=False, na=False)]
             if match.empty:
                 print(f"[trace] {name}: NOT present after {step} (df has {len(df)} rows)")
@@ -288,6 +289,14 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         yield hb
     candidates = await fut
     yield event("prism", "PRISM data ready")
+
+    # Step 5.5: NOAA normals — station-based snow for AK/HI and coastal places
+    yield event("noaa", "Applying NOAA climate normals...")
+    fut, hbs = _run(lambda df: noaa_normals.enrich(df, cache_only=True), candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
+    yield event("noaa", "NOAA normals ready")
 
     # Step 6: ERA5 (cache only — NetCDF download not suitable for web context)
     yield event("era5", "Applying ERA5 warming trends...")

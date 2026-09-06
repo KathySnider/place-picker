@@ -24,7 +24,7 @@ from datetime import datetime
 
 import db as _db
 
-from pipeline import census, osm, daymet, prism, era5, facilities, state_tax, osm_detail, osm_trails
+from pipeline import census, osm, daymet, prism, noaa_normals, era5, facilities, state_tax, osm_detail, osm_trails
 from regions import CONUS
 
 
@@ -81,7 +81,16 @@ def run_pass():
         _log("PRISM pass failed:")
         traceback.print_exc()
 
-    # Step 5: ERA5 warming trends
+    # Step 5: NOAA station-based snow normals (AK/HI + coastal places)
+    _log("Enriching NOAA climate normals...")
+    try:
+        candidates = noaa_normals.enrich(candidates, cache_only=False)
+        _log(f"NOAA normals done — {candidates['noaa_snow_in'].notna().sum():,} places have station snow data")
+    except Exception:
+        _log("NOAA normals pass failed:")
+        traceback.print_exc()
+
+    # Step 6: ERA5 warming trends
     _log("Enriching ERA5...")
     try:
         candidates = era5.enrich(candidates, cache_only=False)
