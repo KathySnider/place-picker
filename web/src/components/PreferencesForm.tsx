@@ -105,7 +105,7 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
             <span className="text-slate-600">Population range</span>
             <span className="font-medium text-slate-800">{p.popMin.toLocaleString()} to {p.popMax.toLocaleString()}</span>
           </div>
-          <input type="range" min={1000} max={10000} step={500} value={p.popMin}
+          <input type="range" min={500} max={10000} step={500} value={p.popMin}
             onChange={e => set('popMin', Math.min(parseFloat(e.target.value), p.popMax - 1000))}
             className="w-full accent-emerald-600" />
           <input type="range" min={10000} max={200000} step={1000} value={p.popMax}
