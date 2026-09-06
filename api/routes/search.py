@@ -204,23 +204,22 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     cfg = _build_config(req)
 
     def _trace(df: pd.DataFrame, step: str):
-        """Log whether Talkeetna is present at this pipeline step."""
-        if "place_name" in df.columns:
-            match = df[df["place_name"].str.contains("Talkeetna", case=False, na=False)]
-        elif "geoid" in df.columns:
-            match = df  # fallback
-        else:
+        """Log whether traced places are present at this pipeline step."""
+        if "place_name" not in df.columns:
             return
-        if match.empty:
-            print(f"[trace] Talkeetna: NOT present after {step}")
-        else:
-            row = match.iloc[0]
-            extras = []
-            for col in ["rough_score", "composite_score", "practical_800m", "summer_temp_f",
-                        "prism_july_tmax_f", "summer_trend_f_dec", "population"]:
-                if col in row.index:
-                    extras.append(f"{col}={row[col]}")
-            print(f"[trace] Talkeetna: present after {step} — {', '.join(extras)}")
+        for name in ("Talkeetna", "Valdez"):
+            match = df[df["place_name"].str.contains(name, case=False, na=False)]
+            if match.empty:
+                print(f"[trace] {name}: NOT present after {step} (df has {len(df)} rows)")
+            else:
+                row = match.iloc[0]
+                rank = df.index.get_loc(match.index[0]) + 1 if hasattr(df.index, 'get_loc') else '?'
+                extras = [f"rank={rank}/{len(df)}"]
+                for col in ["rough_score", "composite_score", "practical_800m", "summer_temp_f",
+                            "prism_july_tmax_f", "summer_trend_f_dec", "population"]:
+                    if col in row.index:
+                        extras.append(f"{col}={row[col]}")
+                print(f"[trace] {name}: present after {step} — {', '.join(extras)}")
 
     # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
