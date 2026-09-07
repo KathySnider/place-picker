@@ -76,23 +76,21 @@ def run_pass():
     # Purge non-CONUS rows from the PRISM cache so they get recomputed with
     # the corrected NaN logic (old rows had prism_snow_in=0.0 from nansum bug).
     # PRISM rasters are already on disk — this is a fast re-extraction, not a re-download.
-    _log("Purging non-CONUS rows from PRISM cache for recompute...")
+    # One-time: purge non-CONUS rows that were cached with prism_snow_in=0.0
+    # from the nansum bug. Once they're gone the check finds nothing to remove.
     try:
         NON_CONUS_STATES = {"Alaska", "Hawaii"}
-        non_conus_geoids = candidates.loc[
+        non_conus_geoids = set(candidates.loc[
             candidates["state_name"].isin(NON_CONUS_STATES), "geoid"
-        ].tolist()
+        ])
         if non_conus_geoids:
             prism_cache = _db.read_cache("prism_cache", prism.CACHE_PATH, [])
             if not prism_cache.empty and "geoid" in prism_cache.columns:
-                before = len(prism_cache)
-                prism_cache = prism_cache[~prism_cache["geoid"].isin(non_conus_geoids)]
-                removed = before - len(prism_cache)
-                if removed:
+                overlap = set(prism_cache["geoid"]) & non_conus_geoids
+                if overlap:
+                    prism_cache = prism_cache[~prism_cache["geoid"].isin(overlap)]
                     _db.write_cache_replace("prism_cache", prism.CACHE_PATH, prism_cache)
-                    _log(f"Removed {removed} non-CONUS rows from PRISM cache — will recompute as NaN")
-                else:
-                    _log("No non-CONUS rows in PRISM cache to purge")
+                    _log(f"Purged {len(overlap)} non-CONUS rows from PRISM cache — will recompute as NaN")
     except Exception:
         _log("PRISM cache purge failed (non-fatal):")
         traceback.print_exc()

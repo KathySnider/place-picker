@@ -124,14 +124,17 @@ def _haversine_mi(lat1, lon1, lat2, lon2):
     return R * 2 * math.asin(math.sqrt(max(0.0, min(1.0, a))))
 
 
-def _find_best_station(
+MAX_CANDIDATES = 8   # try up to this many nearby stations before giving up
+
+
+def _find_candidate_stations(
     lat: float, lon: float, elev_ft: float, stations: pd.DataFrame
-) -> tuple[str | None, str | None, float | None]:
+) -> pd.DataFrame:
     """
-    Return (station_id, station_name, dist_mi) of the nearest station meeting
-    the matching rules, or (None, None, None) if none qualifies.
+    Return up to MAX_CANDIDATES stations meeting distance+elevation criteria,
+    sorted nearest-first. Many GHCN stations lack 1991-2020 normals files, so
+    the caller tries each in turn until one has snow data.
     """
-    # Fast pre-filter: bounding box ~35 miles lat, ~50 miles lon at mid-latitudes
     lat_deg = 35 / 69.0
     lon_deg = 35 / (69.0 * math.cos(math.radians(lat)))
     nearby = stations[
@@ -140,12 +143,11 @@ def _find_best_station(
     ].copy()
 
     if nearby.empty:
-        return None, None, None
+        return pd.DataFrame()
 
     nearby["dist_mi"] = nearby.apply(
         lambda r: _haversine_mi(lat, lon, r["lat"], r["lon"]), axis=1
     )
-    # Apply distance + elevation filter
     if not np.isnan(elev_ft):
         valid = nearby[
             (nearby["dist_mi"] <= MAX_DIST_MI) &
@@ -154,11 +156,7 @@ def _find_best_station(
     else:
         valid = nearby[nearby["dist_mi"] <= MAX_DIST_MI]
 
-    if valid.empty:
-        return None, None, None
-
-    best = valid.loc[valid["dist_mi"].idxmin()]
-    return best["station_id"], best["name"], round(best["dist_mi"], 2)
+    return valid.nsmallest(MAX_CANDIDATES, "dist_mi")
 
 
 # ── Normals fetch ──────────────────────────────────────────────────────────────
@@ -354,21 +352,36 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             print(f"[noaa_normals] ({i}/{len(todo)}) {name_str}...",
                   end=" ", flush=True)
 
-            station_id, station_name, dist_mi = _find_best_station(
-                lat, lon, elev_ft, stations
-            )
+            candidates_df = _find_candidate_stations(lat, lon, elev_ft, stations)
 
+            station_id = station_name = dist_mi = None
             snow_in = None
-            if station_id:
-                snow_in = _fetch_annual_snow(station_id)
-                time.sleep(RATE_LIMIT)
 
-            if station_id and snow_in is not None:
-                print(f"→ {station_name} ({dist_mi:.1f}mi): {snow_in:.1f}\"")
-            elif station_id:
-                print(f"→ {station_name} ({dist_mi:.1f}mi): no snow data")
-            else:
+            if candidates_df.empty:
                 print("→ no station within 30mi/1000ft")
+            else:
+                tried = []
+                for _, srow in candidates_df.iterrows():
+                    elev_diff = abs(srow["elev_ft"] - elev_ft) if not np.isnan(elev_ft) else float("nan")
+                    elev_diff_str = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
+                    snow_in = _fetch_annual_snow(srow["station_id"])
+                    time.sleep(RATE_LIMIT)
+                    tried.append(srow["name"])
+                    if snow_in is not None:
+                        station_id   = srow["station_id"]
+                        station_name = srow["name"]
+                        dist_mi      = round(srow["dist_mi"], 2)
+                        print(f"→ {station_name} ({dist_mi:.1f}mi, {elev_diff_str}): {snow_in:.1f}\"")
+                        break
+                    else:
+                        print(f"  skip {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): no normals", flush=True)
+                else:
+                    # All candidates exhausted — record the nearest for diagnostics
+                    best = candidates_df.iloc[0]
+                    station_id   = best["station_id"]
+                    station_name = best["name"]
+                    dist_mi      = round(best["dist_mi"], 2)
+                    print(f"→ no qualifying station found (tried {len(tried)})")
 
             new_rows.append({
                 "geoid": row.geoid,
