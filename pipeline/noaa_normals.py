@@ -308,14 +308,24 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
     cached_geoids = set(cache["geoid"].tolist())
 
-    # Skip places that have PRISM snow (CONUS) — PRISM is better for those
-    has_prism = "prism_snow_in" in candidates.columns
-    if has_prism:
-        needs_noaa = candidates[candidates["prism_snow_in"].isna()].copy()
-        prism_geoids = set(candidates.loc[candidates["prism_snow_in"].notna(), "geoid"])
+    # AK/HI: PRISM has no coverage — always needs NOAA regardless of what
+    # the PRISM cache stored (it may have cached 0.0 for out-of-bounds places).
+    # CONUS: skip if PRISM snow data is present and non-null.
+    NON_CONUS = {"Alaska", "Hawaii"}
+    if "state_name" in candidates.columns:
+        is_non_conus = candidates["state_name"].isin(NON_CONUS)
     else:
-        needs_noaa = candidates.copy()
-        prism_geoids = set()
+        is_non_conus = pd.Series(False, index=candidates.index)
+
+    has_prism_snow = (
+        candidates["prism_snow_in"].notna()
+        if "prism_snow_in" in candidates.columns
+        else pd.Series(False, index=candidates.index)
+    )
+    # Need NOAA if: non-CONUS state, OR no real PRISM snow data
+    needs_noaa_mask = is_non_conus | ~has_prism_snow
+    needs_noaa   = candidates[needs_noaa_mask].copy()
+    prism_geoids = set(candidates.loc[~needs_noaa_mask, "geoid"])
 
     stale_geoids = set(
         cache.loc[cache["fetched_at"] < cutoff, "geoid"].tolist()
@@ -327,7 +337,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
     n_skip_prism = len(prism_geoids)
     if n_skip_prism:
-        print(f"[noaa_normals] Skipping {n_skip_prism} places with PRISM snow data")
+        print(f"[noaa_normals] Skipping {n_skip_prism} CONUS places with PRISM snow data; "
+              f"{len(needs_noaa)} places need NOAA normals")
 
     if todo.empty:
         print("[noaa_normals] All non-PRISM places already cached.")

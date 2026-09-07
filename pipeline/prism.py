@@ -206,15 +206,21 @@ def _process_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
         mp = np.array(monthly_ppt)
         mt = np.array(monthly_tmean)
 
-        snow_ppt_mm = np.nansum(
-            np.where((mt < SNOW_THRESHOLD_C) & ~np.isnan(mp), mp, 0)
-        )
-        snow_in = round(snow_ppt_mm * 10 / 25.4, 1)
-
         sum_idx = [m - 1 for m in SUMMER_MONTHS]
         win_idx = [m - 1 for m in WINTER_MONTHS]
         summer_c = np.nanmean(mt[sum_idx]) if not np.all(np.isnan(mt[sum_idx])) else np.nan
         winter_c = np.nanmean(mt[win_idx]) if not np.all(np.isnan(mt[win_idx])) else np.nan
+
+        # If all monthly precip values are NaN, the place is outside PRISM's
+        # coverage (AK, HI, ocean) — store NaN, not 0.0 from nansum.
+        all_ppt_nan = np.all(np.isnan(mp))
+        if all_ppt_nan:
+            snow_in = np.nan
+        else:
+            snow_ppt_mm = np.nansum(
+                np.where((mt < SNOW_THRESHOLD_C) & ~np.isnan(mp), mp, 0)
+            )
+            snow_in = round(snow_ppt_mm * 10 / 25.4, 1)
 
         rows.append({
             "geoid":             row.geoid,

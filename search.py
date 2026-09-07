@@ -171,11 +171,15 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     NON_CONUS = {"Alaska", "Hawaii"}
     if "state_name" in out.columns:
         non_conus_mask = out["state_name"].isin(NON_CONUS)
+        # Also null PRISM snow for non-CONUS — PRISM is CONUS-only and may have
+        # cached 0.0 (from nansum of all-NaN months) for AK/HI places.
+        # NOAA normals take over via the snow_best chain below.
+        prism_snow_cols = ["prism_snow_in"]
         era5_cols  = ["summer_f_1980s", "summer_f_recent", "summer_trend_f_dec",
                       "winter_f_1980s", "winter_f_recent", "winter_trend_f_dec",
                       "snow_mm_1980s",  "snow_mm_recent",  "snow_trend_dec"]
         daymet_cols = ["winter_temp_f", "summer_temp_f", "snowfall_swe_mm", "snowfall_in_approx"]
-        for col in era5_cols + daymet_cols:
+        for col in prism_snow_cols + era5_cols + daymet_cols:
             if col in out.columns:
                 out.loc[non_conus_mask, col] = float("nan")
 
