@@ -24,7 +24,7 @@ from datetime import datetime
 
 import db as _db
 
-from pipeline import census, osm, daymet, prism, noaa_normals, era5, facilities, state_tax, osm_detail, osm_trails
+from pipeline import census, elevation, osm, daymet, prism, noaa_normals, era5, facilities, state_tax, osm_detail, osm_trails
 from regions import CONUS
 
 
@@ -54,7 +54,16 @@ def run_pass():
     candidates = state_tax.enrich(candidates)
     _log(f"Census: {len(candidates):,} places")
 
-    # Step 2: OSM walkability (live fetches for uncached/stale)
+    # Step 2: Elevation (USGS EPQS — needed for NOAA station matching)
+    _log("Enriching elevation...")
+    try:
+        candidates = elevation.enrich(candidates, cache_only=False)
+        _log(f"Elevation done — {candidates['elevation_ft'].notna().sum():,} places have elevation data")
+    except Exception:
+        _log("Elevation pass failed (non-fatal):")
+        traceback.print_exc()
+
+    # Step 4: OSM walkability (live fetches for uncached/stale)
     _log("Enriching OSM walkability...")
     try:
         candidates = osm.enrich(candidates, cache_only=False)

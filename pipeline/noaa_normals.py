@@ -124,16 +124,14 @@ def _haversine_mi(lat1, lon1, lat2, lon2):
     return R * 2 * math.asin(math.sqrt(max(0.0, min(1.0, a))))
 
 
-MAX_CANDIDATES = 8   # try up to this many nearby stations before giving up
-
-
 def _find_candidate_stations(
     lat: float, lon: float, elev_ft: float, stations: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    Return up to MAX_CANDIDATES stations meeting distance+elevation criteria,
-    sorted nearest-first. Many GHCN stations lack 1991-2020 normals files, so
-    the caller tries each in turn until one has snow data.
+    Return all stations within MAX_DIST_MI (and ≤MAX_ELEV_FT if elevation is
+    known), sorted nearest-first. Many GHCN stations lack 1991-2020 normals
+    files, so the caller tries each in turn until one has snow data.
+    No count cap — Wasilla-area stations alone can number 30+ within 30mi.
     """
     lat_deg = 35 / 69.0
     lon_deg = 35 / (69.0 * math.cos(math.radians(lat)))
@@ -156,7 +154,7 @@ def _find_candidate_stations(
     else:
         valid = nearby[nearby["dist_mi"] <= MAX_DIST_MI]
 
-    return valid.nsmallest(MAX_CANDIDATES, "dist_mi")
+    return valid.sort_values("dist_mi")
 
 
 # ── Normals fetch ──────────────────────────────────────────────────────────────

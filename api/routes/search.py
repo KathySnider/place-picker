@@ -199,7 +199,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     await asyncio.sleep(0)
 
     # Import pipeline modules lazily (they're heavy)
-    from pipeline import census, osm, daymet, era5, prism, noaa_normals, score, state_tax, facilities, osm_detail, osm_trails
+    from pipeline import census, elevation, osm, daymet, era5, prism, noaa_normals, score, state_tax, facilities, osm_detail, osm_trails
     import search as search_module
 
     cfg = _build_config(req)
@@ -301,6 +301,12 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         yield hb
     candidates = await fut
     yield event("prism", "PRISM data ready")
+
+    # Elevation (cache_only — USGS fetch happens in worker; needed for NOAA station matching)
+    fut, hbs = _run(lambda df: elevation.enrich(df, cache_only=True), candidates)
+    async for hb in hbs:
+        yield hb
+    candidates = await fut
 
     # Step 5.5: NOAA normals — station-based snow for AK/HI and coastal places
     yield event("noaa", "Applying NOAA climate normals...")
