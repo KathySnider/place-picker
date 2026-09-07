@@ -60,6 +60,7 @@ STATION_LIST_URL = (
 NORMALS_URL = (
     "https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/{station_id}.csv"
 )
+NORMALS_RAW_DIR = "data/raw/noaa_normals"   # per-station CSV cache
 
 HEADERS = {"User-Agent": "place-picker/1.0 (personal location research)"}
 
@@ -168,26 +169,39 @@ _station_normals_cache: dict[str, float | None] = {}   # in-process memo
 def _fetch_annual_snow(station_id: str) -> float | None:
     """
     Fetch 1991-2020 monthly snowfall normals for a station and return the
-    annual sum in inches (tenths-of-inches values → inches).
-    Returns None if the station has no snowfall data.
+    annual sum in inches.
+
+    CSV format: one row per month (12 rows), ~320 columns including
+    MLY-SNOW-NORMAL (already in inches). Flag columns accompany each value;
+    "T" = trace (treat as 0), blank / -9999 = missing.
     """
     if station_id in _station_normals_cache:
         return _station_normals_cache[station_id]
 
-    url = NORMALS_URL.format(station_id=station_id)
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=30)
-        if r.status_code == 404:
-            _station_normals_cache[station_id] = None
-            return None
-        r.raise_for_status()
-    except requests.RequestException as e:
-        print(f" (fetch error for {station_id}: {e})", end="", flush=True)
-        return None   # don't cache — may be transient
+    # Use locally cached CSV if available — avoids re-fetching from NCEI
+    os.makedirs(NORMALS_RAW_DIR, exist_ok=True)
+    local_path = os.path.join(NORMALS_RAW_DIR, f"{station_id}.csv")
+
+    if os.path.exists(local_path):
+        raw_text = open(local_path, encoding="utf-8").read()
+    else:
+        url = NORMALS_URL.format(station_id=station_id)
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=30)
+            if r.status_code == 404:
+                _station_normals_cache[station_id] = None
+                return None
+            r.raise_for_status()
+            raw_text = r.text
+            with open(local_path, "w", encoding="utf-8") as f:
+                f.write(raw_text)
+        except requests.RequestException as e:
+            print(f" (fetch error for {station_id}: {e})", end="", flush=True)
+            return None   # don't cache — may be transient
 
     try:
         df = pd.read_csv(
-            pd.io.common.StringIO(r.text),
+            pd.io.common.StringIO(raw_text),
             dtype=str,
             low_memory=False,
         )
@@ -195,63 +209,19 @@ def _fetch_annual_snow(station_id: str) -> float | None:
         _station_normals_cache[station_id] = None
         return None
 
-    # Column names vary slightly — look for snowfall rows
-    # The normals CSV has a "standard" column and a set of monthly columns
-    # Try to find MLY-SNOW-NORMAL rows
-    snow_row = None
-    if "standard" in df.columns:
-        mask = df["standard"].str.upper().str.contains("SNOW", na=False) & \
-               df["standard"].str.upper().str.contains("MLY", na=False)
-        if mask.any():
-            snow_row = df[mask].iloc[0]
-
-    if snow_row is None:
-        # Try searching all column values for the right variable name
-        for col in df.columns:
-            vals = df[col].astype(str).str.upper()
-            match = vals.str.contains("MLY-SNOW-NORMAL", na=False)
-            if match.any():
-                snow_row = df[match].iloc[0]
-                break
-
-    if snow_row is None:
-        _station_normals_cache[station_id] = None
-        return None
-
-    # Monthly columns: Jan=1, Feb=2, ..., Dec=12 (or named JAN, FEB, etc.)
-    month_cols = []
-    for candidate in (
-        [str(m) for m in range(1, 13)],
-        ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-         "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"],
-    ):
-        found = [c for c in candidate if c in snow_row.index]
-        if len(found) == 12:
-            month_cols = found
-            break
-
-    if not month_cols:
-        # Fall back: find numeric-ish columns (skip first few metadata columns)
-        for start in range(2, min(8, len(snow_row.index))):
-            trial = list(snow_row.index[start:start + 12])
-            # Verify they all parse as numbers or sentinel values
-            parseable = all(
-                _parse_tenth_in(str(snow_row[c])) is not None or
-                str(snow_row[c]).strip() in ("-9999", "-8888", "")
-                for c in trial
-            )
-            if len(trial) == 12 and parseable:
-                month_cols = trial
-                break
-
-    if not month_cols:
+    # MLY-SNOW-NORMAL is a column; each of the 12 rows is one month
+    snow_col = next(
+        (c for c in df.columns if "MLY-SNOW-NORMAL" in c.upper()),
+        None,
+    )
+    if snow_col is None:
         _station_normals_cache[station_id] = None
         return None
 
     total_in = 0.0
     has_data = False
-    for col in month_cols:
-        v = _parse_tenth_in(str(snow_row[col]))
+    for raw in df[snow_col].astype(str):
+        v = _parse_snow_value(raw)
         if v is not None:
             total_in += v
             has_data = True
@@ -261,25 +231,25 @@ def _fetch_annual_snow(station_id: str) -> float | None:
     return result
 
 
-def _parse_tenth_in(s: str) -> float | None:
+def _parse_snow_value(s: str) -> float | None:
     """
-    NCEI normals values are in tenths of inches (or mm, varies).
-    Sentinel: -9999 = missing, -8888 = trace (treat as 0).
-    Returns value in whole inches, or None for missing.
+    Parse one monthly snowfall value from the NCEI normals CSV.
+    Values are in inches. Special cases:
+        "T" = trace → 0.0
+        blank / -9999 / "M" = missing → None
     """
     s = s.strip()
-    if not s:
+    if not s or s in ("-9999", "M", "-9999.0"):
         return None
+    if s.upper() == "T":
+        return 0.0
     try:
         v = float(s)
     except ValueError:
         return None
-    if v == -9999:
+    if v <= -9000:
         return None
-    if v == -8888:
-        return 0.0   # trace
-    # Values are in tenths of inches
-    return v / 10.0
+    return max(0.0, v)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
