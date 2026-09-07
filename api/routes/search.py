@@ -204,14 +204,26 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     cfg = _build_config(req)
 
+    # Traced AK towns: (place_name_fragment, state_name)
+    _TRACED = [
+        ("Talkeetna", "Alaska"),
+        ("Valdez",    "Alaska"),
+        ("Wasilla",   "Alaska"),
+        ("Palmer",    "Alaska"),
+        ("Homer",     "Alaska"),
+    ]
+
     def _trace(df: pd.DataFrame, step: str):
         """Log whether traced places are present at this pipeline step."""
         if "place_name" not in df.columns:
             return
-        for name in ("Talkeetna", "Valdez", "Wasilla", "Palmer", "Homer"):
-            match = df[df["place_name"].str.contains(name, case=False, na=False)]
+        for name, state in _TRACED:
+            mask = df["place_name"].str.contains(name, case=False, na=False)
+            if "state_name" in df.columns:
+                mask &= df["state_name"].str.contains(state, case=False, na=False)
+            match = df[mask]
             if match.empty:
-                print(f"[trace] {name}: NOT present after {step} (df has {len(df)} rows)")
+                print(f"[trace] {name}, {state}: NOT present after {step} (df has {len(df)} rows)")
             else:
                 row = match.iloc[0]
                 rank = df.index.get_loc(match.index[0]) + 1 if hasattr(df.index, 'get_loc') else '?'
@@ -220,7 +232,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
                             "prism_july_tmax_f", "summer_trend_f_dec", "population"]:
                     if col in row.index:
                         extras.append(f"{col}={row[col]}")
-                print(f"[trace] {name}: present after {step} — {', '.join(extras)}")
+                print(f"[trace] {name}, {state}: present after {step} — {', '.join(extras)}")
 
     # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
@@ -323,7 +335,10 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     candidates = search_module._apply_climate_chain(candidates, cfg)
     # Diagnostic: show Valdez climate values before filtering
     if "place_name" in candidates.columns:
-        v = candidates[candidates["place_name"].str.contains("Valdez", case=False, na=False)]
+        _vmask = candidates["place_name"].str.contains("Valdez", case=False, na=False)
+        if "state_name" in candidates.columns:
+            _vmask &= candidates["state_name"].str.contains("Alaska", case=False, na=False)
+        v = candidates[_vmask]
         if not v.empty:
             r = v.iloc[0]
             print(f"[trace] Valdez climate values: summer_temp_f={r.get('summer_temp_f')} "

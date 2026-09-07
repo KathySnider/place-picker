@@ -171,16 +171,22 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     # Summer heat: July average daily high (tmax) preferred over JJA tmean or ERA5/Daymet
     out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
+    _AK_TRACED = [("Talkeetna", "Alaska"), ("Valdez", "Alaska"), ("Wasilla", "Alaska"), ("Palmer", "Alaska"), ("Homer", "Alaska")]
+
     def _valdez_trace(step):
         if "place_name" not in out.columns:
             return
-        for name in ("Valdez", "Wasilla", "Palmer", "Homer"):
-            v = out[out["place_name"].str.contains(name, case=False, na=False)]
+        for name, state in _AK_TRACED:
+            mask = out["place_name"].str.contains(name, case=False, na=False)
+            if "state_name" in out.columns:
+                mask &= out["state_name"].str.contains(state, case=False, na=False)
+            v = out[mask]
             if v.empty:
-                print(f"[ak-trace] {name}: dropped before {step}")
+                print(f"[ak-trace] {name}, {state}: dropped before {step}")
             else:
                 r = v.iloc[0]
-                print(f"[ak-trace] {name}: alive at {step}: snow_best={r.get('snow_best')} "
+                print(f"[ak-trace] {name}, {state}: alive at {step}: snow_best={r.get('snow_best')} "
+                      f"noaa_snow_in={r.get('noaa_snow_in')} "
                       f"summer_temp_f={r.get('summer_temp_f')} winter_temp_best={r.get('winter_temp_best')} "
                       f"summer_trend_f_dec={r.get('summer_trend_f_dec')}")
 
