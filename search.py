@@ -164,6 +164,21 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
         return candidates[col] if col in candidates.columns else pd.Series(dtype=float, index=candidates.index)
 
     out = candidates.copy()
+
+    # ERA5 and Daymet bounding boxes don't cover Alaska or Hawaii.
+    # All AK/HI towns map to the nearest CONUS grid point, producing identical
+    # and meaningless values. Null them out so they don't poison the climate chain.
+    NON_CONUS = {"Alaska", "Hawaii"}
+    if "state_name" in out.columns:
+        non_conus_mask = out["state_name"].isin(NON_CONUS)
+        era5_cols  = ["summer_f_1980s", "summer_f_recent", "summer_trend_f_dec",
+                      "winter_f_1980s", "winter_f_recent", "winter_trend_f_dec",
+                      "snow_mm_1980s",  "snow_mm_recent",  "snow_trend_dec"]
+        daymet_cols = ["winter_temp_f", "summer_temp_f", "snowfall_swe_mm", "snowfall_in_approx"]
+        for col in era5_cols + daymet_cols:
+            if col in out.columns:
+                out.loc[non_conus_mask, col] = float("nan")
+
     out["snow_era5_in"]      = _col("snow_mm_recent") * 10 / 25.4
     # Snow priority: PRISM (CONUS gridded) → NOAA station normals (AK/HI) → ERA5 estimate → Daymet
     out["snow_best"]         = _col("prism_snow_in").fillna(_col("noaa_snow_in")).fillna(out["snow_era5_in"]).fillna(_col("snowfall_in_approx"))
