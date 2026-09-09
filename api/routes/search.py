@@ -204,36 +204,6 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     cfg = _build_config(req)
 
-    # Traced AK towns: (place_name_fragment, state_name)
-    _TRACED = [
-        ("Talkeetna", "Alaska"),
-        ("Valdez",    "Alaska"),
-        ("Wasilla",   "Alaska"),
-        ("Palmer",    "Alaska"),
-        ("Homer",     "Alaska"),
-    ]
-
-    def _trace(df: pd.DataFrame, step: str):
-        """Log whether traced places are present at this pipeline step."""
-        if "place_name" not in df.columns:
-            return
-        for name, state in _TRACED:
-            mask = df["place_name"].str.contains(name, case=False, na=False)
-            if "state_name" in df.columns:
-                mask &= df["state_name"].str.contains(state, case=False, na=False)
-            match = df[mask]
-            if match.empty:
-                print(f"[trace] {name}, {state}: NOT present after {step} (df has {len(df)} rows)")
-            else:
-                row = match.iloc[0]
-                rank = df.index.get_loc(match.index[0]) + 1 if hasattr(df.index, 'get_loc') else '?'
-                extras = [f"rank={rank}/{len(df)}"]
-                for col in ["rough_score", "composite_score", "practical_800m", "summer_temp_f",
-                            "prism_july_tmax_f", "summer_trend_f_dec", "population"]:
-                    if col in row.index:
-                        extras.append(f"{col}={row[col]}")
-                print(f"[trace] {name}, {state}: present after {step} — {', '.join(extras)}")
-
     # Step 1: Census — SQL-filtered query (only rows we need)
     yield event("census", "Loading Census data...")
     await asyncio.sleep(0)
@@ -257,7 +227,6 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         rent_max=cfg.MEDIAN_RENT_MAX,
     )
     candidates = state_tax.enrich(candidates)
-    _trace(candidates, "census load")
 
     if candidates.empty:
         yield event("error", "No places matched your filters — try loosening population or region.")
@@ -280,9 +249,7 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("filter", "Applying filters and rough scoring...")
     await asyncio.sleep(0)
     rough = search_module._rough_score(candidates, cfg)
-    _trace(rough, "rough score (pre-trim)")
     candidates = rough.head(cfg.CANDIDATES).copy()
-    _trace(candidates, f"rough score trim (top {cfg.CANDIDATES})")
     yield event("filter", f"{len(candidates):,} candidates selected for enrichment")
     await asyncio.sleep(0)
 
@@ -339,24 +306,8 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     yield event("score", "Applying climate filters and scoring...")
     await asyncio.sleep(0)
     candidates = search_module._apply_climate_chain(candidates, cfg)
-    # Diagnostic: show Valdez climate values before filtering
-    if "place_name" in candidates.columns:
-        _vmask = candidates["place_name"].str.contains("Valdez", case=False, na=False)
-        if "state_name" in candidates.columns:
-            _vmask &= candidates["state_name"].str.contains("Alaska", case=False, na=False)
-        v = candidates[_vmask]
-        if not v.empty:
-            r = v.iloc[0]
-            print(f"[trace] Valdez climate values: summer_temp_f={r.get('summer_temp_f')} "
-                  f"prism_july_tmax_f={r.get('prism_july_tmax_f')} "
-                  f"summer_f_recent={r.get('summer_f_recent')} "
-                  f"summer_trend_f_dec={r.get('summer_trend_f_dec')} "
-                  f"snow_best={r.get('snow_best')} "
-                  f"winter_temp_best={r.get('winter_temp_best')}")
-    _trace(candidates, "climate chain")
     ranked = score.rank(candidates, cfg.WEIGHTS, cfg.CLIMATE)
     ranked = ranked.drop_duplicates(subset="geoid", keep="first")
-    _trace(ranked, "final ranking")
 
     # Walkability filter — allow nulls through (uncached places get no OSM data yet)
     if cfg.WALK_MIN_800M > 0:

@@ -112,6 +112,9 @@ export function PreferencesForm({ initialPrefs, onSearch }: Props) {
             onChange={e => set('popMax', Math.max(parseFloat(e.target.value), p.popMin + 1000))}
             className="w-full accent-emerald-600" />
         </div>
+        <p className="text-xs text-slate-400 mt-1">
+          Walkability scores for towns under ~5,000 people may be understated — smaller towns are often incompletely mapped in OpenStreetMap.
+        </p>
       </Section>
 
       {/* Regions */}
