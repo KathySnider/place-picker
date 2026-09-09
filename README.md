@@ -1,6 +1,6 @@
 # place-picker
 
-A data-driven tool for finding your ideal retirement location. Combines Census demographics, OpenStreetMap walkability, PRISM climate normals, ERA5 warming trends, and Daymet weather data to rank small-to-mid-sized US towns against your personal priorities.
+A data-driven tool for finding your ideal retirement location. Combines Census demographics, OpenStreetMap walkability, PRISM climate normals, NOAA station snowfall normals, ERA5 warming trends, Daymet weather data, and USGS elevation data to rank small-to-mid-sized US towns against your personal priorities.
 
 ## What it does
 
@@ -84,6 +84,17 @@ All preferences live in `config.py`:
   - Citation: Thornton, M.M., et al. (2022). Daymet: Daily Surface Weather Data on a 1-km Grid for North America, Version 4 R1. ORNL DAAC, Oak Ridge, Tennessee, USA. https://doi.org/10.3334/ORNLDAAC/2129
   - License: CC0 1.0 (public domain)
 
+### NOAA National Centers for Environmental Information (NCEI)
+- **1991–2020 Climate Normals** — station-based monthly snowfall normals; used to derive annual snowfall for Alaska, Hawaii, and places outside PRISM coverage
+  - Source: https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/
+  - Station inventory: GHCN-Daily stations file, https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt
+  - License: Public domain (U.S. government work)
+
+### USGS National Map — Elevation Point Query Service (EPQS)
+- **Ground elevation** — elevation in feet for each census place; used to constrain NOAA station matching to stations within 1,000 ft elevation difference
+  - Source: https://epqs.nationalmap.gov/v1/
+  - License: Public domain (U.S. government work)
+
 ### Centers for Medicare & Medicaid Services (CMS)
 - **Hospital General Information** — Medicare-certified hospital locations
   - Source: https://data.cms.gov/provider-data/dataset/xubh-q36u
@@ -103,8 +114,10 @@ All preferences live in `config.py`:
 
 ```
 Census API → filter & score candidates
+USGS EPQS → ground elevation per place (one-time)
 OSM Overpass → walkability counts + amenity detail + trails
-PRISM rasters → snowfall, summer/winter mean temps (primary)
+PRISM rasters → snowfall, summer/winter mean temps (CONUS primary)
+NOAA NCEI normals → station-based snowfall (Alaska, Hawaii, non-PRISM)
 ERA5 NetCDF → warming trends (primary) + climate fallback
 Daymet API → temperature & precip fallback
 CMS / NCES / IMLS → hospital, college, library proximity

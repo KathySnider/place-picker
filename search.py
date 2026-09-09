@@ -160,10 +160,10 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     Build best-available climate columns (PRISM > ERA5 > Daymet) and apply
     hard cutoffs from cfg. Used by both search.py and the API route.
     """
-    def _col(col):
-        return candidates[col] if col in candidates.columns else pd.Series(dtype=float, index=candidates.index)
-
     out = candidates.copy()
+
+    def _col(col):
+        return out[col] if col in out.columns else pd.Series(dtype=float, index=out.index)
 
     # ERA5 and Daymet bounding boxes don't cover Alaska or Hawaii.
     # All AK/HI towns map to the nearest CONUS grid point, producing identical
