@@ -139,17 +139,23 @@ def run_pass():
         _log("Facilities pass failed:")
         traceback.print_exc()
 
-    # Step 7: Re-freshen any osm_detail and osm_trails rows already in cache
-    # (can't pre-populate — we don't know which places will rank top 25,
-    #  but we can keep previously-seen top results fresh)
-    _log("Refreshing stale osm_detail entries...")
+    # Step 7: Pre-populate and refresh osm_detail for known top-result places.
+    # Places with trails cache data have appeared in real search results before
+    # and are likely to appear again — pre-fetch their detail so searches are instant.
+    _log("Refreshing/pre-populating osm_detail entries...")
     try:
         detail_cache = _db.read_cache("osm_detail_cache", osm_detail.CACHE_PATH, osm_detail.DETAIL_COLS)
-        if not detail_cache.empty:
-            candidates_subset = candidates[candidates["geoid"].isin(detail_cache["geoid"])]
-            if not candidates_subset.empty:
-                osm_detail.enrich(candidates_subset)
-                _log(f"osm_detail refreshed {len(candidates_subset):,} cached places")
+        trails_cache = _db.read_cache("osm_trails_cache", osm_trails.CACHE_PATH, osm_trails.TRAIL_COLS)
+        known_geoids  = set(detail_cache["geoid"]) if not detail_cache.empty else set()
+        trails_geoids = set(trails_cache["geoid"]) if not trails_cache.empty else set()
+        target_geoids = known_geoids | trails_geoids
+        candidates_subset = candidates[candidates["geoid"].isin(target_geoids)]
+        if not candidates_subset.empty:
+            new_count = len(trails_geoids - known_geoids)
+            _log(f"osm_detail: {len(known_geoids)} already cached, {new_count} new from trails — processing {len(candidates_subset):,} total")
+            osm_detail.enrich(candidates_subset)
+        else:
+            _log("osm_detail: no target places found")
     except Exception:
         _log("osm_detail refresh failed:")
         traceback.print_exc()

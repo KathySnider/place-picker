@@ -34,10 +34,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import db as _db
 
 CACHE_PATH   = "data/processed/osm_detail_cache.parquet"
-RATE_LIMIT   = 2.0
-RETRY_WAIT   = 10
-MAX_RETRIES  = 2   # fail faster in web context; worker uses more patience
-CACHE_DAYS   = 180   # refresh after 6 months
+RATE_LIMIT        = 2.0
+RETRY_WAIT        = 10
+MAX_RETRIES       = 2    # fail faster in web context; worker uses more patience
+CACHE_DAYS        = 180  # refresh successful rows after 6 months
+FAILED_RETRY_DAYS = 3    # worker retries failed places after 3 days
 
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
@@ -48,7 +49,7 @@ OVERPASS_SERVERS = [
 RADIUS = 1600  # meters — ~1 mile
 
 DETAIL_COLS = [
-    "geoid", "detail_fetched_date",
+    "geoid", "detail_fetched_date", "detail_failed_date",
     # Practical
     "has_grocery", "has_pharmacy", "has_medical", "has_bank",
     "has_atm", "has_post_office", "has_library",
@@ -225,39 +226,39 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     """
     Add per-amenity presence columns to the top results DataFrame.
     Uses anchor_lat/anchor_lng from OSM cache if available, else lat/lng.
-    Caches results; refreshes rows older than CACHE_DAYS.
+    Caches results; refreshes successful rows older than CACHE_DAYS.
 
-    cache_only=True: treat previously-failed (null amenity) rows as fresh so
-    the web path doesn't retry them — the background worker will refresh them.
+    Failed fetches are marked with detail_failed_date and skipped on the web
+    path (cache_only=True). The worker retries them after FAILED_RETRY_DAYS.
     """
     cache = _db.read_cache("osm_detail_cache", CACHE_PATH, DETAIL_COLS)
     if "detail_fetched_date" not in cache.columns:
         cache["detail_fetched_date"] = pd.NaT
+    if "detail_failed_date" not in cache.columns:
+        cache["detail_failed_date"] = pd.NaT
 
-    today     = pd.Timestamp(date.today())
-    stale_age = pd.Timedelta(days=CACHE_DAYS)
+    today      = pd.Timestamp(date.today())
+    stale_age  = pd.Timedelta(days=CACHE_DAYS)
+    retry_age  = pd.Timedelta(days=FAILED_RETRY_DAYS)
 
     cached = cache.copy()
     cached["detail_fetched_date"] = pd.to_datetime(cached["detail_fetched_date"])
+    cached["detail_failed_date"]  = pd.to_datetime(cached["detail_failed_date"])
 
-    bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
-    present_bool_cols = [c for c in bool_cols if c in cached.columns]
+    # Successful rows: fetched_date is recent
+    success_fresh = (today - cached["detail_fetched_date"]) < stale_age
 
-    # In cache_only mode, null-amenity rows (previously failed) count as fresh —
-    # the worker will retry them. In live mode, they're stale and get retried.
+    # Failed rows: failed_date is set; treat as fresh if:
+    #   - cache_only (web path): always skip — let the worker handle retries
+    #   - worker path: skip only if failed recently (within FAILED_RETRY_DAYS)
+    failed_mask = cached["detail_failed_date"].notna()
     if cache_only:
-        has_missing = pd.Series(False, index=cached.index)
+        failed_fresh = failed_mask  # web: skip all failures
     else:
-        has_missing = (
-            cached[present_bool_cols].isnull().any(axis=1)
-            if present_bool_cols else pd.Series(False, index=cached.index)
-        )
+        failed_fresh = failed_mask & ((today - cached["detail_failed_date"]) < retry_age)
 
     fresh_geoids = set(
-        cached.loc[
-            ((today - cached["detail_fetched_date"]) < stale_age) & ~has_missing,
-            "geoid"
-        ].tolist()
+        cached.loc[success_fresh | failed_fresh, "geoid"].tolist()
     )
     needed = [
         row for row in top_results.itertuples()
@@ -269,15 +270,17 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     else:
         print(f"[osm_detail] Fetching amenity detail for {len(needed)} places...")
         new_rows = []
+        bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
 
-        def _flush(rows):
+        def _flush(current_cache, rows):
             if not rows:
                 return
             new_df = pd.DataFrame(rows)
             refreshed = set(new_df["geoid"].tolist())
-            up = cache[~cache["geoid"].isin(refreshed)]
+            up = current_cache[~current_cache["geoid"].isin(refreshed)]
             merged = pd.concat([up, new_df], ignore_index=True)
             _db.write_cache("osm_detail_cache", CACHE_PATH, merged)
+            return merged
 
         for i, row in enumerate(needed, 1):
             lat = getattr(row, "anchor_lat", None) or row.lat
@@ -286,29 +289,30 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                   end=" ", flush=True)
             result = _fetch_one(lat, lon)
             if result is None:
-                print("error — caching as null so next search skips retry")
+                print("error — marking failed, worker will retry in 3 days")
                 new_rows.append({"geoid": row.geoid,
-                                 "detail_fetched_date": today,
-                                 **{col: None for col in DETAIL_COLS if col.startswith("has_")}})
+                                 "detail_fetched_date": pd.NaT,
+                                 "detail_failed_date": today,
+                                 **{col: None for col in bool_cols}})
             else:
                 new_rows.append({"geoid": row.geoid,
                                  "detail_fetched_date": today,
+                                 "detail_failed_date": pd.NaT,
                                  **result})
                 print("done")
 
             # Save every 5 places so progress isn't lost on connection drop
             if i % 5 == 0:
-                _flush(new_rows)
+                cache = _flush(cache, new_rows) or cache
                 print(f"[osm_detail] Saved progress ({i}/{len(needed)})")
 
             if i < len(needed):
                 time.sleep(RATE_LIMIT)
 
-        _flush(new_rows)
+        cache = _flush(cache, new_rows) or cache
         if new_rows:
             print(f"[osm_detail] Cache updated: {len(new_rows)} places")
 
-    bool_cols = [c for c in DETAIL_COLS if c.startswith("has_")]
-    keep_cols = ["geoid"] + bool_cols
+    keep_cols = ["geoid"] + [c for c in DETAIL_COLS if c.startswith("has_")]
     available = [c for c in keep_cols if c in cache.columns]
     return top_results.merge(cache[available], on="geoid", how="left")
