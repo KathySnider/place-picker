@@ -130,7 +130,7 @@ def run_pass():
         candidates_subset = candidates[candidates["geoid"].isin(target_geoids)]
         if not candidates_subset.empty:
             new_count = len(trails_geoids - known_geoids)
-            _log(f"osm_detail: {len(known_geoids)} already cached, {new_count} new from trails — processing {len(candidates_subset):,} total")
+            _log(f"osm_detail: {len(known_geoids)} cached, {new_count} new from trails — checking {len(candidates_subset):,} for staleness")
             osm_detail.enrich(candidates_subset)
         else:
             _log("osm_detail: no target places found")
