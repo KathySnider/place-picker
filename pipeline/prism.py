@@ -239,10 +239,16 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             cache[col] = np.nan
 
     cached_geoids = set(cache["geoid"].tolist())
-    # Also re-process rows that are missing the new tmax/tmin columns
-    missing_new_cols = set(
+    # Re-process rows missing the tmax/tmin columns, but exclude rows where ALL
+    # prism values are NaN — those are outside PRISM coverage (AK/HI) and will
+    # always produce NaN; reprocessing them every pass wastes a raster download.
+    prism_val_cols = [c for c in PRISM_COLS if c not in ("geoid",) and c in cache.columns]
+    all_nan_geoids = set(
+        cache.loc[cache[prism_val_cols].isna().all(axis=1), "geoid"].tolist()
+    ) if prism_val_cols else set()
+    missing_new_cols = (set(
         cache.loc[cache[["prism_july_tmax_f", "prism_jan_tmin_f"]].isna().all(axis=1), "geoid"].tolist()
-    ) & cached_geoids
+    ) & cached_geoids) - all_nan_geoids
     needed = (set(candidates["geoid"].tolist()) - cached_geoids) | (missing_new_cols & set(candidates["geoid"].tolist()))
 
     if not needed:
