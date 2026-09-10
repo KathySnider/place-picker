@@ -314,8 +314,6 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         ranked = ranked[ranked["practical_800m"].isna() | (ranked["practical_800m"] >= cfg.WALK_MIN_800M)]
     if cfg.WALK_MIN_1600M > 0:
         ranked = ranked[ranked["practical_1600m"].isna() | (ranked["practical_1600m"] >= cfg.WALK_MIN_1600M)]
-    _trace(ranked, "walkability filter")
-
     if ranked.empty:
         yield event("error", "No places met all filters. Try relaxing your criteria.")
         return
@@ -325,7 +323,6 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
     # Step 10: OSM detail + trails for top N
     top_n = ranked.head(cfg.RESULTS).copy()
-    _trace(top_n, f"final top {cfg.RESULTS}")
     yield event("detail", f"Fetching amenity detail for top {len(top_n)} places...")
     fut, hbs = _run(lambda df: osm_detail.enrich(df, cache_only=True), top_n)
     async for hb in hbs:
