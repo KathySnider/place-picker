@@ -245,17 +245,26 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     cached["detail_fetched_date"] = pd.to_datetime(cached["detail_fetched_date"])
     cached["detail_failed_date"]  = pd.to_datetime(cached["detail_failed_date"])
 
-    # Successful rows: fetched_date is recent
-    success_fresh = (today - cached["detail_fetched_date"]) < stale_age
+    bool_cols_present = [c for c in DETAIL_COLS if c.startswith("has_") and c in cached.columns]
 
-    # Failed rows: failed_date is set; treat as fresh if:
-    #   - cache_only (web path): always skip — let the worker handle retries
-    #   - worker path: skip only if failed recently (within FAILED_RETRY_DAYS)
-    failed_mask = cached["detail_failed_date"].notna()
+    # A row is a real success only if fetched_date is recent AND at least one
+    # bool col is non-null (old failure rows have fetched_date set but all nulls).
+    has_any_data = (
+        cached[bool_cols_present].notna().any(axis=1)
+        if bool_cols_present else pd.Series(False, index=cached.index)
+    )
+    success_fresh = ((today - cached["detail_fetched_date"]) < stale_age) & has_any_data
+
+    # Failed rows: failed_date is set (new-style) OR fetched_date set but all nulls (old-style).
+    # Web path skips all failures. Worker retries after FAILED_RETRY_DAYS.
+    new_style_failed = cached["detail_failed_date"].notna()
+    old_style_failed = cached["detail_fetched_date"].notna() & ~has_any_data
+    failed_mask = new_style_failed | old_style_failed
     if cache_only:
         failed_fresh = failed_mask  # web: skip all failures
     else:
-        failed_fresh = failed_mask & ((today - cached["detail_failed_date"]) < retry_age)
+        last_attempt = cached["detail_failed_date"].fillna(cached["detail_fetched_date"])
+        failed_fresh = failed_mask & ((today - last_attempt) < retry_age)
 
     fresh_geoids = set(
         cached.loc[success_fresh | failed_fresh, "geoid"].tolist()
