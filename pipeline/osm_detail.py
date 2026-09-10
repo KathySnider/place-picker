@@ -312,13 +312,17 @@ def enrich(top_results: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
             # Save every 5 places so progress isn't lost on connection drop
             if i % 5 == 0:
-                cache = _flush(cache, new_rows) or cache
+                result = _flush(cache, new_rows)
+                if result is not None:
+                    cache = result
                 print(f"[osm_detail] Saved progress ({i}/{len(needed)})")
 
             if i < len(needed):
                 time.sleep(RATE_LIMIT)
 
-        cache = _flush(cache, new_rows) or cache
+        result = _flush(cache, new_rows)
+        if result is not None:
+            cache = result
         if new_rows:
             print(f"[osm_detail] Cache updated: {len(new_rows)} places")
 
