@@ -117,25 +117,28 @@ def run_pass():
         _log("Facilities pass failed:")
         traceback.print_exc()
 
-    # Step 7: Pre-populate and refresh osm_detail for known top-result places.
-    # Places with trails cache data have appeared in real search results before
-    # and are likely to appear again — pre-fetch their detail so searches are instant.
-    _log("Refreshing/pre-populating osm_detail entries...")
+    # Step 7: Pre-populate and refresh osm_detail and osm_trails for known
+    # top-result places. Each cache cross-seeds the other: detail-cached places
+    # get trails pre-fetched, and trails-cached places get detail pre-fetched.
+    _log("Refreshing/pre-populating osm_detail and osm_trails entries...")
     try:
-        detail_cache = _db.read_cache("osm_detail_cache", osm_detail.CACHE_PATH, osm_detail.DETAIL_COLS)
-        trails_cache = _db.read_cache("osm_trails_cache", osm_trails.CACHE_PATH, osm_trails.TRAIL_COLS)
-        known_geoids  = set(detail_cache["geoid"]) if not detail_cache.empty else set()
+        detail_cache  = _db.read_cache("osm_detail_cache",  osm_detail.CACHE_PATH,  osm_detail.DETAIL_COLS)
+        trails_cache  = _db.read_cache("osm_trails_cache",  osm_trails.CACHE_PATH,  osm_trails.TRAIL_COLS)
+        detail_geoids = set(detail_cache["geoid"]) if not detail_cache.empty else set()
         trails_geoids = set(trails_cache["geoid"]) if not trails_cache.empty else set()
-        target_geoids = known_geoids | trails_geoids
+        target_geoids = detail_geoids | trails_geoids
         candidates_subset = candidates[candidates["geoid"].isin(target_geoids)]
         if not candidates_subset.empty:
-            new_count = len(trails_geoids - known_geoids)
-            _log(f"osm_detail: {len(known_geoids)} cached, {new_count} new from trails — checking {len(candidates_subset):,} for staleness")
+            detail_new = len(trails_geoids - detail_geoids)
+            trails_new = len(detail_geoids - trails_geoids)
+            _log(f"osm_detail: {len(detail_geoids)} cached, {detail_new} new from trails — checking {len(candidates_subset):,} for staleness")
             osm_detail.enrich(candidates_subset)
+            _log(f"osm_trails: {len(trails_geoids)} cached, {trails_new} new from detail — checking {len(candidates_subset):,} for staleness")
+            osm_trails.enrich(candidates_subset)
         else:
-            _log("osm_detail: no target places found")
+            _log("osm_detail/trails: no target places found")
     except Exception:
-        _log("osm_detail refresh failed:")
+        _log("osm_detail/trails refresh failed:")
         traceback.print_exc()
 
     elapsed = time.time() - t0
