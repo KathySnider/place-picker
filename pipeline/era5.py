@@ -50,8 +50,8 @@ NC_PATH     = "data/raw/era5_monthly.nc"   # may be a ZIP from new CDS API
 NC_TEMP     = "data/raw/era5_t2m.nc"       # extracted temperature file
 NC_SNOW     = "data/raw/era5_sf.nc"        # extracted snowfall file
 
-# US bounding box including Alaska: [North, West, South, East]
-AREA = [72, -180, 18, -65]
+# North America bounding box (US + Canada + AK): [North, West, South, East]
+AREA = [84, -180, 18, -52]
 
 YEARS       = list(range(1980, 2025))
 BASELINE    = (1980, 1994)   # early period for comparison
