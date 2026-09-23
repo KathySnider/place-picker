@@ -169,8 +169,12 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     # All AK/HI towns map to the nearest CONUS grid point, producing identical
     # and meaningless values. Null them out so they don't poison the climate chain.
     NON_CONUS = {"Alaska", "Hawaii"}
-    if "state_name" in out.columns:
-        non_conus_mask = out["state_name"].isin(NON_CONUS)
+    non_conus_mask = (
+        out["state_name"].isin(NON_CONUS)
+        if "state_name" in out.columns
+        else pd.Series(False, index=out.index)
+    )
+    if non_conus_mask.any():
         # Also null PRISM snow for non-CONUS — PRISM is CONUS-only and may have
         # cached 0.0 (from nansum of all-NaN months) for AK/HI places.
         # NOAA normals take over via the snow_best chain below.
@@ -194,14 +198,17 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
         out = out[out["snow_best"].notna() & (out["snow_best"] >= cfg.SNOW_MIN_IN)]
     if getattr(cfg, "SNOW_MAX_IN", None):
         out = out[out["snow_best"].notna() & (out["snow_best"] <= cfg.SNOW_MAX_IN)]
+    # For temperature and trend filters, AK/HI with NaN passes through —
+    # those states have no pipeline coverage (PRISM/ERA5/Daymet are all CONUS-only).
+    non_conus = non_conus_mask.reindex(out.index, fill_value=False)
     if getattr(cfg, "SUMMER_MAX_F", None):
-        out = out[out["summer_temp_f"].notna() & (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
+        out = out[non_conus | (out["summer_temp_f"].notna() & (out["summer_temp_f"] <= cfg.SUMMER_MAX_F))]
     if getattr(cfg, "WINTER_MIN_F", None):
-        out = out[out["winter_temp_best"].notna() & (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
+        out = out[non_conus | (out["winter_temp_best"].notna() & (out["winter_temp_best"] >= cfg.WINTER_MIN_F))]
     if getattr(cfg, "SUMMER_TREND_MAX", None):
-        out = out[out["summer_trend_f_dec"].notna() & (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
+        out = out[non_conus | (out["summer_trend_f_dec"].notna() & (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX))]
     if getattr(cfg, "WINTER_TREND_MAX", None):
-        out = out[out["winter_trend_f_dec"].notna() & (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
+        out = out[non_conus | (out["winter_trend_f_dec"].notna() & (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX))]
 
     return out
 
@@ -596,6 +603,15 @@ def run():
         .fillna(candidates["summer_temp_f"])
     )
 
+    # AK/HI have no pipeline coverage for temperature or trend (PRISM/ERA5/Daymet
+    # are all CONUS-only). Temperature/trend filters pass them through on NaN.
+    NON_CONUS = {"Alaska", "Hawaii"}
+    non_conus_cli = (
+        candidates["state_name"].isin(NON_CONUS)
+        if "state_name" in candidates.columns
+        else pd.Series(False, index=candidates.index)
+    )
+
     # ------------------------------------------------------------------
     # 6. Climate hard cutoffs (applied before scoring)
     # ------------------------------------------------------------------
@@ -627,8 +643,8 @@ def run():
     if summer_max:
         before = len(candidates)
         candidates = candidates[
-            candidates["summer_temp_f"].notna() &
-            (candidates["summer_temp_f"] <= summer_max)
+            non_conus_cli |
+            (candidates["summer_temp_f"].notna() & (candidates["summer_temp_f"] <= summer_max))
         ]
         dropped = before - len(candidates)
         if dropped:
@@ -639,8 +655,8 @@ def run():
     if winter_min:
         before = len(candidates)
         candidates = candidates[
-            candidates["winter_temp_best"].notna() &
-            (candidates["winter_temp_best"] >= winter_min)
+            non_conus_cli |
+            (candidates["winter_temp_best"].notna() & (candidates["winter_temp_best"] >= winter_min))
         ]
         dropped = before - len(candidates)
         if dropped:
@@ -651,8 +667,8 @@ def run():
     if summer_trend_max:
         before = len(candidates)
         candidates = candidates[
-            candidates["summer_trend_f_dec"].isna() |
-            (candidates["summer_trend_f_dec"] <= summer_trend_max)
+            non_conus_cli |
+            (candidates["summer_trend_f_dec"].notna() & (candidates["summer_trend_f_dec"] <= summer_trend_max))
         ]
         dropped = before - len(candidates)
         if dropped:
@@ -663,8 +679,8 @@ def run():
     if winter_trend_max:
         before = len(candidates)
         candidates = candidates[
-            candidates["winter_trend_f_dec"].isna() |
-            (candidates["winter_trend_f_dec"] <= winter_trend_max)
+            non_conus_cli |
+            (candidates["winter_trend_f_dec"].notna() & (candidates["winter_trend_f_dec"] <= winter_trend_max))
         ]
         dropped = before - len(candidates)
         if dropped:
