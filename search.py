@@ -191,22 +191,17 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
     if getattr(cfg, "SNOW_MIN_IN", None):
-        # Treat 0.0 snow without PRISM or NOAA data as unknown — ERA5/Daymet snow
-        # estimates are unreliable for coastal AK towns where tmean stays above -2°C
-        has_prism_snow = out["prism_snow_in"].notna() if "prism_snow_in" in out.columns else pd.Series(False, index=out.index)
-        has_noaa_snow  = out["noaa_snow_in"].notna()  if "noaa_snow_in"  in out.columns else pd.Series(False, index=out.index)
-        has_real_snow  = has_prism_snow | has_noaa_snow
-        out = out[out["snow_best"].isna() | (~has_real_snow & (out["snow_best"] == 0)) | (out["snow_best"] >= cfg.SNOW_MIN_IN)]
+        out = out[out["snow_best"].notna() & (out["snow_best"] >= cfg.SNOW_MIN_IN)]
     if getattr(cfg, "SNOW_MAX_IN", None):
-        out = out[out["snow_best"].isna() | (out["snow_best"] <= cfg.SNOW_MAX_IN)]
+        out = out[out["snow_best"].notna() & (out["snow_best"] <= cfg.SNOW_MAX_IN)]
     if getattr(cfg, "SUMMER_MAX_F", None):
-        out = out[out["summer_temp_f"].isna() | (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
+        out = out[out["summer_temp_f"].notna() & (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
     if getattr(cfg, "WINTER_MIN_F", None):
-        out = out[out["winter_temp_best"].isna() | (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
+        out = out[out["winter_temp_best"].notna() & (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
     if getattr(cfg, "SUMMER_TREND_MAX", None):
-        out = out[out["summer_trend_f_dec"].isna() | (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
+        out = out[out["summer_trend_f_dec"].notna() & (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
     if getattr(cfg, "WINTER_TREND_MAX", None):
-        out = out[out["winter_trend_f_dec"].isna() | (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
+        out = out[out["winter_trend_f_dec"].notna() & (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
 
     return out
 
@@ -608,7 +603,7 @@ def run():
     if snow_min:
         before = len(candidates)
         candidates = candidates[
-            candidates["snow_best"].isna() |
+            candidates["snow_best"].notna() &
             (candidates["snow_best"] >= snow_min)
         ]
         dropped = before - len(candidates)
@@ -620,7 +615,7 @@ def run():
     if snow_max:
         before = len(candidates)
         candidates = candidates[
-            candidates["snow_best"].isna() |
+            candidates["snow_best"].notna() &
             (candidates["snow_best"] <= snow_max)
         ]
         dropped = before - len(candidates)
@@ -632,7 +627,7 @@ def run():
     if summer_max:
         before = len(candidates)
         candidates = candidates[
-            candidates["summer_temp_f"].isna() |
+            candidates["summer_temp_f"].notna() &
             (candidates["summer_temp_f"] <= summer_max)
         ]
         dropped = before - len(candidates)
@@ -644,7 +639,7 @@ def run():
     if winter_min:
         before = len(candidates)
         candidates = candidates[
-            candidates["winter_temp_best"].isna() |
+            candidates["winter_temp_best"].notna() &
             (candidates["winter_temp_best"] >= winter_min)
         ]
         dropped = before - len(candidates)
