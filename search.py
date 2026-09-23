@@ -190,9 +190,10 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     out["snow_era5_in"]      = _col("snow_mm_recent") * 10 / 25.4
     # Snow priority: PRISM (CONUS gridded) → NOAA station normals (AK/HI) → ERA5 estimate → Daymet
     out["snow_best"]         = _col("prism_snow_in").fillna(_col("noaa_snow_in")).fillna(out["snow_era5_in"]).fillna(_col("snowfall_in_approx"))
-    out["winter_temp_best"]  = _col("prism_winter_f").fillna(_col("winter_f_recent")).fillna(_col("winter_temp_f"))
-    # Summer heat: July average daily high (tmax) preferred over JJA tmean or ERA5/Daymet
-    out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
+    # Winter temp: PRISM → NOAA station DJF avg (AK/HI) → ERA5 recent → Daymet
+    out["winter_temp_best"]  = _col("prism_winter_f").fillna(_col("noaa_winter_tavg_f")).fillna(_col("winter_f_recent")).fillna(_col("winter_temp_f"))
+    # Summer heat: July daily high (tmax) — PRISM → NOAA station July tmax (AK/HI) → ERA5 recent → Daymet
+    out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("noaa_summer_tmax_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
     if getattr(cfg, "SNOW_MIN_IN", None):
         out = out[out["snow_best"].notna() & (out["snow_best"] >= cfg.SNOW_MIN_IN)]
@@ -594,11 +595,13 @@ def run():
     )
     candidates["winter_temp_best"] = (
         candidates["prism_winter_f"]
+        .fillna(candidates.get("noaa_winter_tavg_f", pd.Series(dtype=float)))
         .fillna(candidates["winter_f_recent"])
         .fillna(candidates["winter_temp_f"])
     )
     candidates["summer_temp_f"] = (
         candidates["prism_summer_f"]
+        .fillna(candidates.get("noaa_summer_tmax_f", pd.Series(dtype=float)))
         .fillna(candidates["summer_f_recent"])
         .fillna(candidates["summer_temp_f"])
     )

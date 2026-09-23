@@ -1,19 +1,21 @@
 """
 pipeline/noaa_normals.py
 ------------------------
-Fetches NOAA NCEI 1991-2020 Climate Normals for snowfall.
+Fetches NOAA NCEI 1991-2020 Climate Normals for snowfall and temperature.
 
-Used to fill snow data for places PRISM doesn't cover (Alaska, Hawaii) and
-as a sanity-check for CONUS places where ERA5's temperature-threshold approach
-fails (e.g. maritime/coastal towns that stay above -2°C even while snowing).
+Used to fill snow and temperature data for places PRISM doesn't cover
+(Alaska, Hawaii) and as a sanity-check for CONUS places where ERA5's
+temperature-threshold approach fails (e.g. maritime/coastal towns).
 
 Station matching rules (domain-expert recommendation for sparse AK coverage):
     - Nearest station within 30 miles (48 km)
     - Elevation difference ≤ 1,000 ft (305 m)
     - Beyond those limits → treat as unknown (NaN)
 
-Output column:
-    noaa_snow_in  — annual snowfall normal (inches), NaN if no valid station
+Output columns:
+    noaa_snow_in       — annual snowfall normal (inches), NaN if no valid station
+    noaa_summer_tmax_f — July average daily high (°F), NaN if unavailable
+    noaa_winter_tavg_f — Dec/Jan/Feb average temperature (°F), NaN if unavailable
 
 Data sources:
     Station inventory: GHCN-Daily stations file (lat/lon/elevation)
@@ -41,6 +43,8 @@ STATIONS_PATH = "data/raw/ghcnd_stations.txt"
 NOAA_COLS = [
     "geoid",
     "noaa_snow_in",
+    "noaa_summer_tmax_f",
+    "noaa_winter_tavg_f",
     "noaa_station_id",
     "noaa_station_name",
     "noaa_station_dist_mi",
@@ -159,22 +163,25 @@ def _find_candidate_stations(
 
 # ── Normals fetch ──────────────────────────────────────────────────────────────
 
-_station_normals_cache: dict[str, float | None] = {}   # in-process memo
+_station_normals_cache: dict[str, dict | None] = {}   # in-process memo
 
 
-def _fetch_annual_snow(station_id: str) -> float | None:
+def _fetch_normals(station_id: str) -> dict | None:
     """
-    Fetch 1991-2020 monthly snowfall normals for a station and return the
-    annual sum in inches.
+    Fetch 1991-2020 monthly normals for a station and return a dict with:
+        snow_in       — annual snowfall sum (inches)
+        summer_tmax_f — July average daily high (°F)   [MLY-TMAX-NORMAL month 7]
+        winter_tavg_f — DJF average temperature (°F)   [MLY-TAVG-NORMAL months 12,1,2]
 
-    CSV format: one row per month (12 rows), ~320 columns including
-    MLY-SNOW-NORMAL (already in inches). Flag columns accompany each value;
-    "T" = trace (treat as 0), blank / -9999 = missing.
+    Any metric is None if the column is absent or all values are missing.
+    Returns None if the CSV is unavailable or unparseable.
+
+    CSV format: 12 rows (one per month), ~320 columns. Flag columns accompany
+    each value; "T" = trace (treat as 0 for snow), blank/-9999/"M" = missing.
     """
     if station_id in _station_normals_cache:
         return _station_normals_cache[station_id]
 
-    # Use locally cached CSV if available — avoids re-fetching from NCEI
     os.makedirs(NORMALS_RAW_DIR, exist_ok=True)
     local_path = os.path.join(NORMALS_RAW_DIR, f"{station_id}.csv")
 
@@ -205,34 +212,63 @@ def _fetch_annual_snow(station_id: str) -> float | None:
         _station_normals_cache[station_id] = None
         return None
 
-    # MLY-SNOW-NORMAL is a column; each of the 12 rows is one month
-    snow_col = next(
-        (c for c in df.columns if "MLY-SNOW-NORMAL" in c.upper()),
-        None,
-    )
-    if snow_col is None:
-        _station_normals_cache[station_id] = None
-        return None
+    # Determine month order from DATE column (values "01"–"12") if present;
+    # fall back to positional order (row 0 = Jan … row 11 = Dec).
+    if "DATE" in df.columns:
+        try:
+            df["_month"] = df["DATE"].str.strip().astype(int)
+        except (ValueError, AttributeError):
+            df["_month"] = range(1, len(df) + 1)
+    else:
+        df["_month"] = range(1, len(df) + 1)
 
-    total_in = 0.0
-    has_data = False
-    for raw in df[snow_col].astype(str):
-        v = _parse_snow_value(raw)
-        if v is not None:
-            total_in += v
-            has_data = True
+    def _find_col(keyword: str):
+        return next((c for c in df.columns if keyword in c.upper()), None)
 
-    result = round(total_in, 1) if has_data else None
+    snow_col  = _find_col("MLY-SNOW-NORMAL")
+    tmax_col  = _find_col("MLY-TMAX-NORMAL")
+    tavg_col  = _find_col("MLY-TAVG-NORMAL")
+
+    # ── Annual snowfall (sum of all months) ────────────────────────────────
+    snow_in = None
+    if snow_col:
+        total = 0.0
+        has_data = False
+        for raw in df[snow_col].astype(str):
+            v = _parse_snow_value(raw)
+            if v is not None:
+                total += v
+                has_data = True
+        snow_in = round(total, 1) if has_data else None
+
+    # ── July TMAX (summer daily high) ─────────────────────────────────────
+    summer_tmax_f = None
+    if tmax_col is not None:
+        july_rows = df[df["_month"] == 7]
+        if not july_rows.empty:
+            summer_tmax_f = _parse_temp_value(july_rows[tmax_col].iloc[0])
+
+    # ── DJF average temperature (winter) ──────────────────────────────────
+    winter_tavg_f = None
+    if tavg_col is not None:
+        djf_rows = df[df["_month"].isin([12, 1, 2])]
+        vals = [_parse_temp_value(v) for v in djf_rows[tavg_col].astype(str)]
+        vals = [v for v in vals if v is not None]
+        winter_tavg_f = round(sum(vals) / len(vals), 1) if vals else None
+
+    result = {
+        "snow_in":       snow_in,
+        "summer_tmax_f": summer_tmax_f,
+        "winter_tavg_f": winter_tavg_f,
+    }
     _station_normals_cache[station_id] = result
     return result
 
 
 def _parse_snow_value(s: str) -> float | None:
     """
-    Parse one monthly snowfall value from the NCEI normals CSV.
-    Values are in inches. Special cases:
-        "T" = trace → 0.0
-        blank / -9999 / "M" = missing → None
+    Parse one monthly snowfall value (inches). "T" = trace → 0.0.
+    blank / -9999 / "M" = missing → None.
     """
     s = s.strip()
     if not s or s in ("-9999", "M", "-9999.0"):
@@ -246,6 +282,18 @@ def _parse_snow_value(s: str) -> float | None:
     if v <= -9000:
         return None
     return max(0.0, v)
+
+
+def _parse_temp_value(s: str) -> float | None:
+    """Parse one monthly temperature value (°F). -9999 / "M" = missing → None."""
+    s = str(s).strip()
+    if not s or s in ("-9999", "M", "-9999.0"):
+        return None
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return None if v <= -9000 else v
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -274,6 +322,19 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
     cached_geoids = set(cache["geoid"].tolist())
 
+    # Re-process any cached rows that are missing the new temperature columns —
+    # the per-station CSVs are already downloaded so this costs no network calls.
+    missing_temp_cols = "noaa_summer_tmax_f" not in cache.columns or \
+                        "noaa_winter_tavg_f" not in cache.columns
+    needs_temp_reprocess = (
+        set(cache.loc[
+            cache.get("noaa_summer_tmax_f", pd.Series(dtype=float)).isna() &
+            cache.get("noaa_winter_tavg_f",  pd.Series(dtype=float)).isna(),
+            "geoid"
+        ].tolist())
+        if not missing_temp_cols else cached_geoids
+    )
+
     # AK/HI: PRISM has no coverage — always needs NOAA regardless of what
     # the PRISM cache stored (it may have cached 0.0 for out-of-bounds places).
     # CONUS: skip if PRISM snow data is present and non-null.
@@ -298,7 +359,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
     ) if len(cache) else set()
 
     todo_geoids = (set(needs_noaa["geoid"]) - cached_geoids) | \
-                  (stale_geoids & set(needs_noaa["geoid"]))
+                  (stale_geoids & set(needs_noaa["geoid"])) | \
+                  (needs_temp_reprocess & set(needs_noaa["geoid"]))
     todo = needs_noaa[needs_noaa["geoid"].isin(todo_geoids)].copy()
 
     n_skip_prism = len(prism_geoids)
@@ -335,6 +397,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                 new_rows.append({
                     "geoid": row.geoid,
                     "noaa_snow_in": None,
+                    "noaa_summer_tmax_f": None,
+                    "noaa_winter_tavg_f": None,
                     "noaa_station_id": None,
                     "noaa_station_name": None,
                     "noaa_station_dist_mi": None,
@@ -353,7 +417,7 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             candidates_df = _find_candidate_stations(lat, lon, elev_ft, stations)
 
             station_id = station_name = dist_mi = None
-            snow_in = None
+            snow_in = summer_tmax_f = winter_tavg_f = None
 
             if candidates_df.empty:
                 print("→ no station within 30mi/1000ft")
@@ -362,14 +426,29 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                 for _, srow in candidates_df.iterrows():
                     elev_diff = abs(srow["elev_ft"] - elev_ft) if not np.isnan(elev_ft) else float("nan")
                     elev_diff_str = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
-                    snow_in = _fetch_annual_snow(srow["station_id"])
-                    time.sleep(RATE_LIMIT)
+                    already_cached = os.path.exists(
+                        os.path.join(NORMALS_RAW_DIR, f"{srow['station_id']}.csv")
+                    )
+                    normals = _fetch_normals(srow["station_id"])
+                    if not already_cached:
+                        time.sleep(RATE_LIMIT)
                     tried.append(srow["name"])
-                    if snow_in is not None:
-                        station_id   = srow["station_id"]
-                        station_name = srow["name"]
-                        dist_mi      = round(srow["dist_mi"], 2)
-                        print(f"→ {station_name} ({dist_mi:.1f}mi, {elev_diff_str}): {snow_in:.1f}\"")
+                    if normals is not None and (
+                        normals["snow_in"] is not None or
+                        normals["summer_tmax_f"] is not None or
+                        normals["winter_tavg_f"] is not None
+                    ):
+                        station_id    = srow["station_id"]
+                        station_name  = srow["name"]
+                        dist_mi       = round(srow["dist_mi"], 2)
+                        snow_in       = normals["snow_in"]
+                        summer_tmax_f = normals["summer_tmax_f"]
+                        winter_tavg_f = normals["winter_tavg_f"]
+                        temp_str = (f", Jul hi {summer_tmax_f:.0f}°F"
+                                    if summer_tmax_f is not None else "")
+                        snow_str = (f"{snow_in:.1f}\""
+                                    if snow_in is not None else "no snow")
+                        print(f"→ {station_name} ({dist_mi:.1f}mi, {elev_diff_str}): {snow_str}{temp_str}")
                         break
                     else:
                         print(f"  skip {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): no normals", flush=True)
@@ -384,6 +463,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             new_rows.append({
                 "geoid": row.geoid,
                 "noaa_snow_in": snow_in,
+                "noaa_summer_tmax_f": summer_tmax_f,
+                "noaa_winter_tavg_f": winter_tavg_f,
                 "noaa_station_id": station_id,
                 "noaa_station_name": station_name,
                 "noaa_station_dist_mi": dist_mi,
@@ -397,7 +478,7 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         _flush()
         print(f"[noaa_normals] Done.")
 
-    keep = ["geoid", "noaa_snow_in", "noaa_station_id", "noaa_station_name",
-            "noaa_station_dist_mi"]
+    keep = ["geoid", "noaa_snow_in", "noaa_summer_tmax_f", "noaa_winter_tavg_f",
+            "noaa_station_id", "noaa_station_name", "noaa_station_dist_mi"]
     available = [c for c in keep if c in cache.columns]
     return candidates.merge(cache[available], on="geoid", how="left")
