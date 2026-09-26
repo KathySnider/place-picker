@@ -29,9 +29,13 @@ def _engine() -> sqlalchemy.Engine | None:
     url = os.environ.get("DATABASE_URL", "")
     if not url:
         return None
-    # Railway issues postgres:// URIs; SQLAlchemy 2.x requires postgresql://
+    # Railway issues postgres:// URIs; SQLAlchemy 2.x requires postgresql://.
+    # Explicitly request the psycopg2 dialect so SQLAlchemy doesn't try to
+    # import psycopg (psycopg3), which is not installed.
     if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
+        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     try:
         engine = sqlalchemy.create_engine(url, pool_pre_ping=True)
         _init_schema(engine)
