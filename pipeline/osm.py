@@ -40,7 +40,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 RATE_LIMIT   = 10.0
 RETRY_WAIT   = 30
 FLUSH_EVERY  = 10
-REFRESH_DAYS = 180   # re-fetch rows older than this
+REFRESH_DAYS  = 180   # re-fetch rows older than this
+STALE_PER_RUN = 50    # max stale rows to refresh per worker pass (prevents wave expiry)
 
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
@@ -287,12 +288,18 @@ def enrich(candidates: pd.DataFrame, stop_event=None, cache_only: bool = False) 
 
     candidate_geoids = set(candidates["geoid"].tolist())
     new_geoids  = candidate_geoids - set(cache["geoid"].tolist())
-    todo_geoids = new_geoids | (stale_geoids & candidate_geoids)
+
+    # Cap stale refreshes per run so a wave expiry doesn't block the pipeline for hours
+    stale_candidate = stale_geoids & candidate_geoids
+    if len(stale_candidate) > STALE_PER_RUN:
+        stale_candidate = set(list(stale_candidate)[:STALE_PER_RUN])
+
+    todo_geoids = new_geoids | stale_candidate
     todo = candidates[candidates["geoid"].isin(todo_geoids)].copy()
 
     print(f"[osm] {len(fresh_geoids & candidate_geoids):,} fresh in cache, "
-          f"{len(new_geoids & candidate_geoids):,} new, "
-          f"{len(stale_geoids & candidate_geoids):,} stale")
+          f"{len(new_geoids):,} new, "
+          f"{len(stale_candidate):,} stale (of {len(stale_geoids & candidate_geoids):,} total stale)")
 
     if todo.empty:
         print("[osm] All candidates already cached — skipping Overpass.")
@@ -300,8 +307,8 @@ def enrich(candidates: pd.DataFrame, stop_event=None, cache_only: bool = False) 
         print(f"[osm] cache_only=True — skipping Overpass fetch for {len(todo)} uncached places")
         todo = todo.iloc[0:0]  # empty, skip the fetch loop
     else:
-        n_new   = len(new_geoids  & candidate_geoids)
-        n_stale = len(stale_geoids & candidate_geoids)
+        n_new   = len(new_geoids & candidate_geoids)
+        n_stale = len(stale_candidate)
         print(f"[osm] Querying Overpass for {len(todo)} places "
               f"({n_new} new, {n_stale} stale) "
               f"~{len(todo) * RATE_LIMIT / 60:.1f} min...")
