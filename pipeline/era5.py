@@ -187,9 +187,15 @@ def _process_grid(candidates: pd.DataFrame) -> pd.DataFrame:
             rows.append({"geoid": row.geoid, **{c: None for c in ERA5_COLS[1:]}})
             continue
 
-        # Nearest grid point
+        # Nearest grid point — normalize candidate longitude to match grid convention
+        # ERA5 may use 0-360 or -180 to 180; align before lookup
+        place_lon = row.lng
+        if lons.min() >= 0 and place_lon < 0:
+            place_lon += 360  # convert -180..0 to 180..360
+        elif lons.min() < 0 and place_lon > 180:
+            place_lon -= 360
         lat_idx = int(np.argmin(np.abs(lats - row.lat)))
-        lon_idx = int(np.argmin(np.abs(lons - row.lng)))
+        lon_idx = int(np.argmin(np.abs(lons - place_lon)))
 
         # Build annual summer/winter/snow time series
         summer_by_year = []
