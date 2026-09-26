@@ -205,7 +205,22 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     cfg = _build_config(req)
 
     # Step 1: Census — SQL-filtered query (only rows we need)
-    yield event("census", "Loading Census data...")
+    # Warn users if the census table is empty (first deploy or stale) — download takes minutes
+    from pipeline import census as _census_mod
+    import db as _db_mod
+    _census_empty = False
+    try:
+        eng = _db_mod.engine()
+        if eng is None:
+            _census_empty = not __import__("os").path.exists(_census_mod.CACHE_PATH)
+        else:
+            from sqlalchemy import inspect as _insp
+            _census_empty = not _insp(eng).has_table("census_places")
+    except Exception:
+        pass
+    _census_msg = ("Loading Census data... (first load may take a few minutes)"
+                   if _census_empty else "Loading Census data...")
+    yield event("census", _census_msg)
     await asyncio.sleep(0)
     # Use a wider population range for the initial load so towns slightly
     # outside the preferred range can still be scored and ranked softly.
@@ -305,7 +320,12 @@ async def _run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     # Step 9: Climate priority chain + filters
     yield event("score", "Applying climate filters and scoring...")
     await asyncio.sleep(0)
-    candidates = search_module._apply_climate_chain(candidates, cfg)
+    candidates, filter_log = search_module._apply_climate_chain(candidates, cfg)
+    for entry in filter_log:
+        dropped = entry["before"] - entry["after"]
+        if dropped:
+            yield event("score", f"{entry['label']}: {dropped:,} dropped → {entry['after']:,} remaining")
+            await asyncio.sleep(0)
     ranked = score.rank(candidates, cfg.WEIGHTS, cfg.CLIMATE)
     ranked = ranked.drop_duplicates(subset="geoid", keep="first")
 

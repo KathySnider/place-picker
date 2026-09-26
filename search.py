@@ -155,12 +155,40 @@ def _rough_score(df: pd.DataFrame, cfg) -> pd.DataFrame:
     return scored.sort_values("rough_score", ascending=False)
 
 
-def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
+_DIAG_TOWNS = {"Valdez", "Talkeetna", "Homer", "Wasilla", "Palmer"}
+
+
+def _diag_log(label: str, df: pd.DataFrame) -> None:
+    """Log climate data for diagnostic AK towns whenever they appear in df."""
+    if "place_name" not in df.columns:
+        return
+    hits = df[df["place_name"].isin(_DIAG_TOWNS)]
+    for _, row in hits.iterrows():
+        def _v(col, fmt=".1f"):
+            v = row.get(col)
+            return f"{v:{fmt}}" if v is not None and str(v) != "nan" else "NaN"
+        print(
+            f"[diag] {label}: {row['place_name']} | "
+            f"snow={_v('snow_best')}\" | "
+            f"summerT={_v('summer_temp_f')}°F | "
+            f"summerNoaa={_v('noaa_summer_tmax_f')}°F | "
+            f"winterT={_v('winter_temp_best')}°F | "
+            f"trend={_v('summer_trend_f_dec', '.3f')}°F/dec",
+            flush=True,
+        )
+
+
+def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> tuple:
     """
     Build best-available climate columns (PRISM > ERA5 > Daymet) and apply
     hard cutoffs from cfg. Used by both search.py and the API route.
+
+    Returns (filtered_df, filter_log) where filter_log is a list of dicts:
+        {"label": str, "before": int, "after": int}
+    Only filters that are active (non-None threshold) appear in the log.
     """
     out = candidates.copy()
+    filter_log = []
 
     def _col(col):
         return out[col] if col in out.columns else pd.Series(dtype=float, index=out.index)
@@ -195,20 +223,36 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> pd.DataFrame:
     # Summer heat: July daily high (tmax) — PRISM → NOAA station July tmax (AK/HI) → ERA5 recent → Daymet
     out["summer_temp_f"]     = _col("prism_july_tmax_f").fillna(_col("prism_summer_f")).fillna(_col("noaa_summer_tmax_f")).fillna(_col("summer_f_recent")).fillna(_col("summer_temp_f"))
 
-    if getattr(cfg, "SNOW_MIN_IN", None):
-        out = out[out["snow_best"].notna() & (out["snow_best"] >= cfg.SNOW_MIN_IN)]
-    if getattr(cfg, "SNOW_MAX_IN", None):
-        out = out[out["snow_best"].notna() & (out["snow_best"] <= cfg.SNOW_MAX_IN)]
-    if getattr(cfg, "SUMMER_MAX_F", None):
-        out = out[out["summer_temp_f"].notna() & (out["summer_temp_f"] <= cfg.SUMMER_MAX_F)]
-    if getattr(cfg, "WINTER_MIN_F", None):
-        out = out[out["winter_temp_best"].notna() & (out["winter_temp_best"] >= cfg.WINTER_MIN_F)]
-    if getattr(cfg, "SUMMER_TREND_MAX", None):
-        out = out[out["summer_trend_f_dec"].notna() & (out["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX)]
-    if getattr(cfg, "WINTER_TREND_MAX", None):
-        out = out[out["winter_trend_f_dec"].notna() & (out["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX)]
+    _diag_log("pre-filter", out)
 
-    return out
+    def _filter(col, label, keep_expr):
+        nonlocal out
+        before = len(out)
+        out = out[keep_expr(out)]
+        after = len(out)
+        filter_log.append({"label": label, "before": before, "after": after})
+        _diag_log(f"after {label}", out)
+
+    if getattr(cfg, "SNOW_MIN_IN", None):
+        _filter("snow_best", f"snow ≥ {cfg.SNOW_MIN_IN}\"",
+                lambda df: df["snow_best"].notna() & (df["snow_best"] >= cfg.SNOW_MIN_IN))
+    if getattr(cfg, "SNOW_MAX_IN", None):
+        _filter("snow_best", f"snow ≤ {cfg.SNOW_MAX_IN}\"",
+                lambda df: df["snow_best"].notna() & (df["snow_best"] <= cfg.SNOW_MAX_IN))
+    if getattr(cfg, "SUMMER_MAX_F", None):
+        _filter("summer_temp_f", f"summer ≤ {cfg.SUMMER_MAX_F}°F",
+                lambda df: df["summer_temp_f"].notna() & (df["summer_temp_f"] <= cfg.SUMMER_MAX_F))
+    if getattr(cfg, "WINTER_MIN_F", None):
+        _filter("winter_temp_best", f"winter ≥ {cfg.WINTER_MIN_F}°F",
+                lambda df: df["winter_temp_best"].notna() & (df["winter_temp_best"] >= cfg.WINTER_MIN_F))
+    if getattr(cfg, "SUMMER_TREND_MAX", None):
+        _filter("summer_trend_f_dec", f"summer trend ≤ {cfg.SUMMER_TREND_MAX}°F/dec",
+                lambda df: df["summer_trend_f_dec"].notna() & (df["summer_trend_f_dec"] <= cfg.SUMMER_TREND_MAX))
+    if getattr(cfg, "WINTER_TREND_MAX", None):
+        _filter("winter_trend_f_dec", f"winter trend ≤ {cfg.WINTER_TREND_MAX}°F/dec",
+                lambda df: df["winter_trend_f_dec"].notna() & (df["winter_trend_f_dec"] <= cfg.WINTER_TREND_MAX))
+
+    return out, filter_log
 
 
 # ---------------------------------------------------------------------------
