@@ -174,6 +174,10 @@ def _process_grid(candidates: pd.DataFrame) -> pd.DataFrame:
     t2m      = ds_t.variables["t2m"][:]     # shape: (time, lat, lon), units: K
     snowfall = ds_s.variables["sf"][:]      # shape: (time, lat, lon)
 
+    print(f"[era5] Grid: lat [{float(lats.min()):.1f}, {float(lats.max()):.1f}]  "
+          f"lon [{float(lons.min()):.1f}, {float(lons.max()):.1f}]  "
+          f"shape={t2m.shape}")
+
     # sf stepType=avgad = average DAILY snowfall (m water equiv/day)
     # multiply by days in month to get monthly total, then m->mm
     days_in_month = months_dt.days_in_month.values
@@ -196,6 +200,18 @@ def _process_grid(candidates: pd.DataFrame) -> pd.DataFrame:
             place_lon -= 360
         lat_idx = int(np.argmin(np.abs(lats - row.lat)))
         lon_idx = int(np.argmin(np.abs(lons - place_lon)))
+
+        # Debug: log grid lookup for AK places (lat > 58)
+        if row.lat > 58:
+            matched_lat = float(lats[lat_idx])
+            matched_lon = float(lons[lon_idx])
+            t_sample = float(t2m[0, lat_idx, lon_idx])
+            print(f"[era5-dbg] {row.place_name}: place=({row.lat:.2f},{row.lng:.2f}) "
+                  f"place_lon_adj={place_lon:.2f} "
+                  f"grid_range lat=[{float(lats.min()):.1f},{float(lats.max()):.1f}] "
+                  f"lon=[{float(lons.min()):.1f},{float(lons.max()):.1f}] "
+                  f"matched=({matched_lat:.2f},{matched_lon:.2f}) "
+                  f"t2m[0]={t_sample:.1f}K")
 
         # Build annual summer/winter/snow time series
         summer_by_year = []
