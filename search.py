@@ -193,10 +193,10 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> tuple:
     def _col(col):
         return out[col] if col in out.columns else pd.Series(dtype=float, index=out.index)
 
-    # ERA5 and Daymet bounding boxes don't cover Alaska or Hawaii.
-    # All AK/HI towns map to the nearest CONUS grid point, producing identical
-    # and meaningless values. Null them out so they don't poison the climate chain.
-    NON_CONUS = {"Alaska", "Hawaii"}
+    # Daymet and PRISM don't cover Alaska or Hawaii.
+    # ERA5 now covers North America including AK, so only Hawaii gets ERA5 nulled.
+    # Hawaii still maps to nearest grid point outside its islands.
+    NON_CONUS = {"Hawaii"}
     non_conus_mask = (
         out["state_name"].isin(NON_CONUS)
         if "state_name" in out.columns
