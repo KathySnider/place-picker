@@ -193,27 +193,33 @@ def _apply_climate_chain(candidates: pd.DataFrame, cfg) -> tuple:
     def _col(col):
         return out[col] if col in out.columns else pd.Series(dtype=float, index=out.index)
 
-    # Daymet and PRISM don't cover Alaska or Hawaii.
-    # ERA5 now covers North America including AK, so only Hawaii gets ERA5 nulled.
-    # Hawaii still maps to nearest grid point outside its islands.
-    NON_CONUS = {"Hawaii"}
-    non_conus_mask = (
-        out["state_name"].isin(NON_CONUS)
+    # PRISM and Daymet don't cover Alaska or Hawaii — null those columns for AK+HI.
+    # ERA5 now covers North America including AK, so ERA5 columns are only nulled for HI.
+    ak_hi_mask = (
+        out["state_name"].isin({"Alaska", "Hawaii"})
         if "state_name" in out.columns
         else pd.Series(False, index=out.index)
     )
-    if non_conus_mask.any():
-        # Also null PRISM snow for non-CONUS — PRISM is CONUS-only and may have
-        # cached 0.0 (from nansum of all-NaN months) for AK/HI places.
-        # NOAA normals take over via the snow_best chain below.
+    hi_only_mask = (
+        out["state_name"].isin({"Hawaii"})
+        if "state_name" in out.columns
+        else pd.Series(False, index=out.index)
+    )
+    if ak_hi_mask.any():
+        # PRISM and Daymet are CONUS-only; null for both AK and HI
         prism_snow_cols = ["prism_snow_in"]
-        era5_cols  = ["summer_f_1980s", "summer_f_recent", "summer_trend_f_dec",
-                      "winter_f_1980s", "winter_f_recent", "winter_trend_f_dec",
-                      "snow_mm_1980s",  "snow_mm_recent",  "snow_trend_dec"]
         daymet_cols = ["winter_temp_f", "summer_temp_f", "snowfall_swe_mm", "snowfall_in_approx"]
-        for col in prism_snow_cols + era5_cols + daymet_cols:
+        for col in prism_snow_cols + daymet_cols:
             if col in out.columns:
-                out.loc[non_conus_mask, col] = float("nan")
+                out.loc[ak_hi_mask, col] = float("nan")
+    if hi_only_mask.any():
+        # ERA5 grid doesn't cover Hawaii — null ERA5 for HI only
+        era5_cols = ["summer_f_1980s", "summer_f_recent", "summer_trend_f_dec",
+                     "winter_f_1980s", "winter_f_recent", "winter_trend_f_dec",
+                     "snow_mm_1980s",  "snow_mm_recent",  "snow_trend_dec"]
+        for col in era5_cols:
+            if col in out.columns:
+                out.loc[hi_only_mask, col] = float("nan")
 
     out["snow_era5_in"]      = _col("snow_mm_recent") * 10 / 25.4
     # Snow priority: PRISM (CONUS gridded) → NOAA station normals (AK/HI) → ERA5 estimate → Daymet

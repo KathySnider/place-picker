@@ -422,8 +422,11 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             if candidates_df.empty:
                 print("→ no station within 30mi/1000ft")
             else:
-                tried = []
+                tried = 0
                 for _, srow in candidates_df.iterrows():
+                    # Stop once all three metrics are filled
+                    if snow_in is not None and summer_tmax_f is not None and winter_tavg_f is not None:
+                        break
                     elev_diff = abs(srow["elev_ft"] - elev_ft) if not np.isnan(elev_ft) else float("nan")
                     elev_diff_str = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
                     already_cached = os.path.exists(
@@ -432,33 +435,46 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                     normals = _fetch_normals(srow["station_id"])
                     if not already_cached:
                         time.sleep(RATE_LIMIT)
-                    tried.append(srow["name"])
-                    if normals is not None and (
-                        normals["snow_in"] is not None or
-                        normals["summer_tmax_f"] is not None or
-                        normals["winter_tavg_f"] is not None
-                    ):
-                        station_id    = srow["station_id"]
-                        station_name  = srow["name"]
-                        dist_mi       = round(srow["dist_mi"], 2)
-                        snow_in       = normals["snow_in"]
+                    tried += 1
+
+                    if normals is None:
+                        print(f"  skip {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): no normals", flush=True)
+                        continue
+
+                    gained = []
+                    if snow_in is None and normals["snow_in"] is not None:
+                        snow_in = normals["snow_in"]
+                        gained.append(f"snow {snow_in:.1f}\"")
+                    if summer_tmax_f is None and normals["summer_tmax_f"] is not None:
                         summer_tmax_f = normals["summer_tmax_f"]
+                        gained.append(f"Jul hi {summer_tmax_f:.0f}°F")
+                    if winter_tavg_f is None and normals["winter_tavg_f"] is not None:
                         winter_tavg_f = normals["winter_tavg_f"]
-                        temp_str = (f", Jul hi {summer_tmax_f:.0f}°F"
-                                    if summer_tmax_f is not None else "")
-                        snow_str = (f"{snow_in:.1f}\""
-                                    if snow_in is not None else "no snow")
-                        print(f"→ {station_name} ({dist_mi:.1f}mi, {elev_diff_str}): {snow_str}{temp_str}")
-                        break
+                        gained.append(f"win {winter_tavg_f:.0f}°F")
+
+                    if gained:
+                        # Use the nearest contributing station for the record
+                        if station_id is None:
+                            station_id   = srow["station_id"]
+                            station_name = srow["name"]
+                            dist_mi      = round(srow["dist_mi"], 2)
+                        print(f"  {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): {', '.join(gained)}", flush=True)
                     else:
                         print(f"  skip {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): no normals", flush=True)
-                else:
-                    # All candidates exhausted — record the nearest for diagnostics
+
+                if station_id is None:
+                    # Nothing found at all
                     best = candidates_df.iloc[0]
                     station_id   = best["station_id"]
                     station_name = best["name"]
                     dist_mi      = round(best["dist_mi"], 2)
-                    print(f"→ no qualifying station found (tried {len(tried)})")
+                    print(f"→ no qualifying station found (tried {tried})")
+                else:
+                    missing = [m for m, v in [("snow", snow_in), ("tmax", summer_tmax_f), ("tavg", winter_tavg_f)] if v is None]
+                    if missing:
+                        print(f"→ partial match (missing: {', '.join(missing)}) after {tried} stations")
+                    else:
+                        print(f"→ complete match after {tried} station(s)")
 
             new_rows.append({
                 "geoid": row.geoid,
