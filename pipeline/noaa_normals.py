@@ -48,6 +48,12 @@ NOAA_COLS = [
     "noaa_station_id",
     "noaa_station_name",
     "noaa_station_dist_mi",
+    "noaa_snow_station_id",
+    "noaa_snow_station_name",
+    "noaa_snow_station_dist_mi",
+    "noaa_temp_station_id",
+    "noaa_temp_station_name",
+    "noaa_temp_station_dist_mi",
 ]
 
 # ── Matching thresholds ────────────────────────────────────────────────────────
@@ -418,6 +424,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
             station_id = station_name = dist_mi = None
             snow_in = summer_tmax_f = winter_tavg_f = None
+            snow_station_id = snow_station_name = snow_station_dist_mi = None
+            temp_station_id = temp_station_name = temp_station_dist_mi = None
 
             if candidates_df.empty:
                 print("→ no station within 30mi/1000ft")
@@ -444,16 +452,25 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                     gained = []
                     if snow_in is None and normals["snow_in"] is not None:
                         snow_in = normals["snow_in"]
+                        snow_station_id   = srow["station_id"]
+                        snow_station_name = srow["name"]
+                        snow_station_dist_mi = round(srow["dist_mi"], 2)
                         gained.append(f"snow {snow_in:.1f}\"")
-                    if summer_tmax_f is None and normals["summer_tmax_f"] is not None:
-                        summer_tmax_f = normals["summer_tmax_f"]
-                        gained.append(f"Jul hi {summer_tmax_f:.0f}°F")
-                    if winter_tavg_f is None and normals["winter_tavg_f"] is not None:
-                        winter_tavg_f = normals["winter_tavg_f"]
-                        gained.append(f"win {winter_tavg_f:.0f}°F")
+                    if (summer_tmax_f is None or winter_tavg_f is None) and (
+                        normals["summer_tmax_f"] is not None or normals["winter_tavg_f"] is not None
+                    ):
+                        if summer_tmax_f is None and normals["summer_tmax_f"] is not None:
+                            summer_tmax_f = normals["summer_tmax_f"]
+                            gained.append(f"Jul hi {summer_tmax_f:.0f}°F")
+                        if winter_tavg_f is None and normals["winter_tavg_f"] is not None:
+                            winter_tavg_f = normals["winter_tavg_f"]
+                            gained.append(f"win {winter_tavg_f:.0f}°F")
+                        if temp_station_id is None:
+                            temp_station_id   = srow["station_id"]
+                            temp_station_name = srow["name"]
+                            temp_station_dist_mi = round(srow["dist_mi"], 2)
 
                     if gained:
-                        # Use the nearest contributing station for the record
                         if station_id is None:
                             station_id   = srow["station_id"]
                             station_name = srow["name"]
@@ -463,7 +480,6 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                         print(f"  skip {srow['name']} ({srow['dist_mi']:.1f}mi, {elev_diff_str}): no normals", flush=True)
 
                 if station_id is None:
-                    # Nothing found at all
                     best = candidates_df.iloc[0]
                     station_id   = best["station_id"]
                     station_name = best["name"]
@@ -484,6 +500,12 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                 "noaa_station_id": station_id,
                 "noaa_station_name": station_name,
                 "noaa_station_dist_mi": dist_mi,
+                "noaa_snow_station_id":   snow_station_id,
+                "noaa_snow_station_name": snow_station_name,
+                "noaa_snow_station_dist_mi": snow_station_dist_mi,
+                "noaa_temp_station_id":   temp_station_id,
+                "noaa_temp_station_name": temp_station_name,
+                "noaa_temp_station_dist_mi": temp_station_dist_mi,
                 "fetched_at": today,
             })
 
@@ -495,6 +517,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         print(f"[noaa_normals] Done.")
 
     keep = ["geoid", "noaa_snow_in", "noaa_summer_tmax_f", "noaa_winter_tavg_f",
-            "noaa_station_id", "noaa_station_name", "noaa_station_dist_mi"]
+            "noaa_station_id", "noaa_station_name", "noaa_station_dist_mi",
+            "noaa_snow_station_id", "noaa_snow_station_name", "noaa_snow_station_dist_mi",
+            "noaa_temp_station_id", "noaa_temp_station_name", "noaa_temp_station_dist_mi"]
     available = [c for c in keep if c in cache.columns]
     return candidates.merge(cache[available], on="geoid", how="left")
