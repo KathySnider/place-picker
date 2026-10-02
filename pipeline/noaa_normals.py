@@ -341,6 +341,20 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         if not missing_temp_cols else cached_geoids
     )
 
+    # Re-process rows that have data but are missing the per-metric provenance
+    # columns added after the initial multi-station refactor.
+    needs_provenance_reprocess = set()
+    if "noaa_snow_station_id" in cache.columns:
+        mask = cache["noaa_snow_in"].notna() & cache["noaa_snow_station_id"].isna()
+        needs_provenance_reprocess = set(cache.loc[mask, "geoid"].tolist())
+        if needs_provenance_reprocess:
+            print(f"[noaa_normals] {len(needs_provenance_reprocess)} cached rows need "
+                  f"provenance backfill (snow data but no station provenance)")
+    else:
+        needs_provenance_reprocess = set(
+            cache.loc[cache["noaa_snow_in"].notna(), "geoid"].tolist()
+        )
+
     # AK/HI: PRISM has no coverage — always needs NOAA regardless of what
     # the PRISM cache stored (it may have cached 0.0 for out-of-bounds places).
     # CONUS: skip if PRISM snow data is present and non-null.
@@ -364,9 +378,15 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
         cache.loc[cache["fetched_at"] < cutoff, "geoid"].tolist()
     ) if len(cache) else set()
 
+    provenance_in_scope = needs_provenance_reprocess & set(needs_noaa["geoid"])
+    if needs_provenance_reprocess and not provenance_in_scope:
+        print(f"[noaa_normals] WARNING: {len(needs_provenance_reprocess)} provenance rows "
+              f"not in needs_noaa scope — geoid sample: "
+              f"{list(needs_provenance_reprocess)[:3]}")
     todo_geoids = (set(needs_noaa["geoid"]) - cached_geoids) | \
                   (stale_geoids & set(needs_noaa["geoid"])) | \
-                  (needs_temp_reprocess & set(needs_noaa["geoid"]))
+                  (needs_temp_reprocess & set(needs_noaa["geoid"])) | \
+                  provenance_in_scope
     todo = needs_noaa[needs_noaa["geoid"].isin(todo_geoids)].copy()
 
     n_skip_prism = len(prism_geoids)
