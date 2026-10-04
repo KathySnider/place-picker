@@ -35,7 +35,7 @@ import pandas as pd
 
 import db as _db
 from pipeline import (
-    census, elevation, osm, daymet, prism, noaa_normals,
+    census, elevation, osm, daymet, prism, noaa_normals, wrcc,
     era5, facilities, state_tax, osm_detail, osm_trails,
 )
 from regions import CONUS
@@ -173,6 +173,16 @@ def _enrich_thread(candidates: pd.DataFrame):
         _log(f"NOAA normals done — {candidates['noaa_snow_in'].notna().sum():,} places have station snow data")
     except Exception:
         _log("NOAA normals pass failed:")
+        traceback.print_exc()
+
+    # WRCC/ACIS fallback for places still missing snow or temperature after NOAA
+    _log("Enriching WRCC/ACIS climate fallback...")
+    try:
+        candidates = wrcc.enrich(candidates, cache_only=False)
+        n_wrcc_snow = candidates["wrcc_snow_in"].notna().sum() if "wrcc_snow_in" in candidates.columns else 0
+        _log(f"WRCC done — {n_wrcc_snow:,} places filled via ACIS fallback")
+    except Exception:
+        _log("WRCC pass failed (non-fatal):")
         traceback.print_exc()
 
     # ERA5 warming trends
