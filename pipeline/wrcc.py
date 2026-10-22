@@ -67,6 +67,7 @@ WRCC_COLS = [
 MAX_DIST_MI  = 30.0
 MAX_ELEV_FT  = 1000.0
 MIN_YEARS    = 10      # minimum years of data required in preferred period
+SNOW_CORE_MONTHS = {11, 12, 1, 2, 3, 4}  # months a snow season must report to count
 REFRESH_DAYS = 730
 
 # ── ACIS API ───────────────────────────────────────────────────────────────────
@@ -188,9 +189,11 @@ def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
         "sdate": sdate,
         "edate": edate,
         "elems": [
-            {"name": "maxt", "interval": "mly", "duration": "mly"},
-            {"name": "snow", "interval": "mly", "duration": "mly"},
-            {"name": "avgt", "interval": "mly", "duration": "mly"},
+            # reduce is required: without it ACIS returns each month as a
+            # list of daily values instead of a single monthly value.
+            {"name": "maxt", "interval": "mly", "duration": "mly", "reduce": "mean"},
+            {"name": "snow", "interval": "mly", "duration": "mly", "reduce": "sum"},
+            {"name": "avgt", "interval": "mly", "duration": "mly", "reduce": "mean"},
         ],
         "meta": "uid",
     }
@@ -203,6 +206,10 @@ def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
         )
         resp.raise_for_status()
         data = resp.json()
+        if "error" in data:
+            # ACIS reports request errors as HTTP 200 with an "error" body
+            print(f"[wrcc] StnData ACIS error (uid={uid}): {data['error']}", flush=True)
+            return None
         return data.get("data") or None
     except Exception as e:
         print(f"[wrcc] StnData error (uid={uid}): {e}", flush=True)
@@ -219,7 +226,8 @@ def _compute_metrics(rows: list[list]) -> dict:
     """
     july_tmax_vals = []
     djf_tavg_vals  = []
-    annual_snow    = {}   # year → total snow inches
+    annual_snow    = {}   # season end year → total snow inches
+    snow_months    = {}   # season end year → set of months with a snow report
     dates_with_data = []
 
     for row in rows:
@@ -245,18 +253,25 @@ def _compute_metrics(rows: list[list]) -> dict:
         if month in (12, 1, 2) and avgt is not None:
             djf_tavg_vals.append(avgt)
 
-        # Accumulate annual snow — use year of the snow month for Jan/Feb,
-        # use next year for December (it belongs to that winter season)
+        # Accumulate seasonal snow over Jul–Jun seasons, keyed by the year the
+        # season ends, and track which core snow months were reported.
         if snow is not None:
-            snow_year = year if month != 12 else year + 1
-            annual_snow[snow_year] = annual_snow.get(snow_year, 0.0) + snow
+            season = year + 1 if month >= 7 else year
+            annual_snow[season] = annual_snow.get(season, 0.0) + snow
+            snow_months.setdefault(season, set()).add(month)
 
     n_years = len(set(int(d[:4]) for d in dates_with_data)) if dates_with_data else 0
     period = None
     if dates_with_data:
         period = f"{dates_with_data[0][:4]}-{dates_with_data[-1][:4]}"
 
-    snow_in = round(sum(annual_snow.values()) / len(annual_snow), 1) if annual_snow else None
+    # Only average seasons where every core snow month was reported; a season
+    # missing winter months would undercount and drag the average down.
+    complete = [
+        total for season, total in annual_snow.items()
+        if SNOW_CORE_MONTHS <= snow_months[season]
+    ]
+    snow_in = round(sum(complete) / len(complete), 1) if len(complete) >= MIN_YEARS else None
     july_tmax_f = round(sum(july_tmax_vals) / len(july_tmax_vals), 1) if july_tmax_vals else None
     winter_tavg_f = round(sum(djf_tavg_vals) / len(djf_tavg_vals), 1) if djf_tavg_vals else None
 
