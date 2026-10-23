@@ -50,6 +50,7 @@ Columns (20 total):
     fetched_at
 """
 
+import functools
 import math
 import os
 import sys
@@ -92,6 +93,9 @@ REFRESH_DAYS = 730
 # ── ACIS API ───────────────────────────────────────────────────────────────────
 ACIS_BASE   = "https://data.rcc-acis.org"
 RATE_LIMIT  = 0.5   # seconds between StnData calls
+# Max cached station results (station × window) per run.  Each entry is a
+# small dict (~1 KB with overhead), so the cap is ~100 MB at most.
+STATION_CACHE_SIZE = 100_000
 FLUSH_EVERY = 20
 HEADERS     = {"User-Agent": "place-picker/1.0 (personal location research)"}
 
@@ -330,15 +334,27 @@ def _compute_metrics(rows: list[list]) -> dict:
     }
 
 
-def _fetch_station_metrics(uid, sdate: str, edate: str) -> dict | None:
+class _StationFetchError(Exception):
+    """Transient StnData failure; raised so lru_cache doesn't store it."""
+
+
+@functools.lru_cache(maxsize=STATION_CACHE_SIZE)
+def _fetch_station_metrics(uid, sdate: str, edate: str) -> dict:
     """
     Fetch and compute a station's metrics for one date window.
-    Returns None on request error, {} when ACIS has no data for the station
-    at all, otherwise the _compute_metrics dict (individual metrics may be None).
+    Returns {} when ACIS has no data for the station at all, otherwise the
+    _compute_metrics dict (individual metrics may be None).  Raises
+    _StationFetchError on request errors.
+
+    Results — including stations with no valid metrics — are cached for the
+    run, so other towns reuse them without another ACIS call.  Only the small
+    processed dict is kept, never the raw monthly rows.  Callers must not
+    mutate the returned dict; it is shared across towns.
     """
     rows = _stn_data(uid, sdate, edate)
+    time.sleep(RATE_LIMIT)  # only real requests are rate limited; cache hits skip this
     if rows is None:
-        return None
+        raise _StationFetchError
     if not rows:
         return {}
     return _compute_metrics(rows)
@@ -409,6 +425,8 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
 
         new_rows = []
         no_data_uids = set()   # stations ACIS has no data for; skipped for the rest of the run
+        n_fetch_errors = 0
+        _fetch_station_metrics.cache_clear()   # station cache lives for this run only
 
         def _flush():
             nonlocal cache, new_rows
@@ -477,14 +495,15 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                         if stn["uid"] in no_data_uids:
                             continue
 
-                        metrics = _fetch_station_metrics(stn["uid"], sdate, edate)
-                        time.sleep(RATE_LIMIT)
                         n_checked += 1
+                        try:
+                            metrics = _fetch_station_metrics(stn["uid"], sdate, edate)
+                        except _StationFetchError:
+                            n_fetch_errors += 1
+                            continue
 
                         if metrics == {}:
                             no_data_uids.add(stn["uid"])
-                            continue
-                        if metrics is None:
                             continue
 
                         stn_elev = float(stn["elev"]) if stn["elev"] is not None else float("nan")
@@ -554,6 +573,14 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                 print(f"[wrcc] Saved progress ({i}/{len(todo)})")
 
         _flush()
+        info = _fetch_station_metrics.cache_info()
+        lookups = info.hits + info.misses
+        hit_pct = f"{100 * info.hits / lookups:.0f}%" if lookups else "n/a"
+        print(f"[wrcc] Station cache: {info.hits:,} hits, {info.misses:,} misses "
+              f"({hit_pct} hit rate), {info.currsize:,}/{info.maxsize:,} entries, "
+              f"{n_fetch_errors:,} request errors (not cached), "
+              f"{len(no_data_uids):,} no-data stations skipped")
+        _fetch_station_metrics.cache_clear()   # release memory between worker loops
         print("[wrcc] Done.")
 
     available = [c for c in WRCC_COLS if c in cache.columns]
