@@ -28,9 +28,12 @@ Metrics (each needs ≥ MIN_YEARS (10) valid years, checked independently):
     A month is valid only if ACIS reports it with ≤ MAX_MISSING_DAYS missing
     days; months with more come back as "M".
 
-Data period:
-    Per metric, prefers 1991-2020 when that window has ≥ MIN_YEARS valid
-    years; otherwise falls back to the station's full period of record.
+Data period (two passes over the candidate stations, nearest first):
+    Pass 1 uses only 1991-2020 data; each metric takes the nearest station
+    with ≥ MIN_YEARS valid years in that window.  Pass 2 uses each station's
+    full period of record, only for metrics still empty after pass 1 — it
+    never replaces a pass-1 value, even from a closer station.  Stations
+    ACIS reports as having no data are remembered for the run and skipped.
     Each metric's stored period spans the years actually used in its
     calculation, not the station's operating period.
 
@@ -198,7 +201,8 @@ def _preferred_sid(sids: list) -> str | None:
 def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
     """
     Fetch monthly maxt, snow, avgt for a station from ACIS.
-    Returns list of [date_str, maxt_str, snow_str, avgt_str] rows, or None on error.
+    Returns list of [date_str, maxt_str, snow_str, avgt_str] rows, [] when ACIS
+    has no data for the station, or None on error.
     """
     payload = {
         "uid": uid,
@@ -228,21 +232,20 @@ def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
         resp.raise_for_status()
         data = resp.json()
         if "error" in data:
-            # ACIS reports request errors as HTTP 200 with an "error" body
+            # ACIS reports errors as HTTP 200 with an "error" body.  "No data
+            # available" means the station has none of these elements in any
+            # period (a station that merely closed early returns all-"M" rows),
+            # so treat it as an empty result rather than a failure.
+            if str(data["error"]).strip().lower() == "no data available":
+                return []
             print(f"[wrcc] StnData ACIS error (uid={uid}): {data['error']}", flush=True)
             return None
-        return data.get("data") or None
+        return data.get("data") or []
     except Exception as e:
         print(f"[wrcc] StnData error (uid={uid}): {e}", flush=True)
         return None
 
 
-# metric value key → its period key, as returned by _compute_metrics
-METRIC_PERIOD_KEYS = {
-    "winter_snow_in": "winter_snow_period",
-    "july_tmax_f":    "july_tmax_period",
-    "winter_tavg_f":  "winter_tavg_period",
-}
 # short need names used in enrich() → metric value key
 _METRIC_KEY = {"snow": "winter_snow_in", "tmax": "july_tmax_f", "tavg": "winter_tavg_f"}
 
@@ -327,31 +330,18 @@ def _compute_metrics(rows: list[list]) -> dict:
     }
 
 
-def _fetch_station_metrics(uid, need: set[str]) -> dict | None:
+def _fetch_station_metrics(uid, sdate: str, edate: str) -> dict | None:
     """
-    Fetch metrics for a station, trying 1991-2020 first.  Any metric in `need`
-    (keys of METRIC_PERIOD_KEYS) that lacks MIN_YEARS valid years there is
-    retried against the full period of record, independently of the others.
-    Returns None if the station is unreachable or yields no metric at all.
+    Fetch and compute a station's metrics for one date window.
+    Returns None on request error, {} when ACIS has no data for the station
+    at all, otherwise the _compute_metrics dict (individual metrics may be None).
     """
-    rows = _stn_data(uid, PREFERRED_SDATE, PREFERRED_EDATE)
+    rows = _stn_data(uid, sdate, edate)
     if rows is None:
         return None
-
-    metrics = _compute_metrics(rows)
-
-    if any(metrics[k] is None for k in need):
-        por_rows = _stn_data(uid, "por", "por")
-        if por_rows:
-            por_metrics = _compute_metrics(por_rows)
-            for key, period_key in METRIC_PERIOD_KEYS.items():
-                if metrics[key] is None and por_metrics[key] is not None:
-                    metrics[key] = por_metrics[key]
-                    metrics[period_key] = por_metrics[period_key]
-
-    if all(metrics[k] is None for k in METRIC_PERIOD_KEYS):
-        return None
-    return metrics
+    if not rows:
+        return {}
+    return _compute_metrics(rows)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -418,6 +408,7 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
               f"tavg={len(need_tavg & todo_geoids)} missing)...")
 
         new_rows = []
+        no_data_uids = set()   # stations ACIS has no data for; skipped for the rest of the run
 
         def _flush():
             nonlocal cache, new_rows
@@ -468,78 +459,85 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
             if not stations:
                 print(f"  → no station within {MAX_DIST_MI}mi/{MAX_ELEV_FT:.0f}ft")
             else:
-                snow_done  = False
-                tmax_done  = False
-                tavg_done  = False
+                done = set()   # need names already filled; later passes never revisit them
 
-                for stn in stations:
-                    if snow_done and tmax_done and tavg_done:
+                # Pass 1 searches every station for modern (1991-2020) data
+                # before pass 2 falls back to historical records, so a nearby
+                # historical station can't win over a farther modern one.
+                for pass_label, sdate, edate in (
+                    ("1991-2020",   PREFERRED_SDATE, PREFERRED_EDATE),
+                    ("full record", "por",           "por"),
+                ):
+                    n_checked = 0
+                    for stn in stations:
+                        still_need = [m for m in ("snow", "tmax", "tavg")
+                                      if m in need_here and m not in done]
+                        if not still_need:
+                            break
+                        if stn["uid"] in no_data_uids:
+                            continue
+
+                        metrics = _fetch_station_metrics(stn["uid"], sdate, edate)
+                        time.sleep(RATE_LIMIT)
+                        n_checked += 1
+
+                        if metrics == {}:
+                            no_data_uids.add(stn["uid"])
+                            continue
+                        if metrics is None:
+                            continue
+
+                        stn_elev = float(stn["elev"]) if stn["elev"] is not None else float("nan")
+                        elev_diff = abs(stn_elev - elev_ft) if not np.isnan(elev_ft) and not np.isnan(stn_elev) else float("nan")
+                        elev_str  = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
+
+                        sid       = _preferred_sid(stn["sids"])
+                        dist_mi   = round(stn["dist_mi"], 2)
+                        elev_diff_r = round(elev_diff, 0) if not np.isnan(elev_diff) else None
+                        gained    = []
+
+                        if "snow" in still_need and metrics["winter_snow_in"] is not None:
+                            period = metrics["winter_snow_period"]
+                            result["wrcc_winter_snow_in"]                = metrics["winter_snow_in"]
+                            result["wrcc_winter_snow_station_id"]        = sid
+                            result["wrcc_winter_snow_station_name"]      = stn["name"]
+                            result["wrcc_winter_snow_station_dist_mi"]   = dist_mi
+                            result["wrcc_winter_snow_station_elev_diff_ft"] = elev_diff_r
+                            result["wrcc_winter_snow_period"]            = period
+                            done.add("snow")
+                            gained.append(f"Nov–Apr snow {metrics['winter_snow_in']:.1f}\" ({period})")
+
+                        if "tmax" in still_need and metrics["july_tmax_f"] is not None:
+                            period = metrics["july_tmax_period"]
+                            result["wrcc_july_tmax_f"]               = metrics["july_tmax_f"]
+                            result["wrcc_july_tmax_station_id"]      = sid
+                            result["wrcc_july_tmax_station_name"]    = stn["name"]
+                            result["wrcc_july_tmax_station_dist_mi"] = dist_mi
+                            result["wrcc_july_tmax_station_elev_diff_ft"] = elev_diff_r
+                            result["wrcc_july_tmax_period"]          = period
+                            done.add("tmax")
+                            gained.append(f"Jul hi {metrics['july_tmax_f']:.0f}°F ({period})")
+
+                        if "tavg" in still_need and metrics["winter_tavg_f"] is not None:
+                            period = metrics["winter_tavg_period"]
+                            result["wrcc_winter_tavg_f"]               = metrics["winter_tavg_f"]
+                            result["wrcc_winter_tavg_station_id"]      = sid
+                            result["wrcc_winter_tavg_station_name"]    = stn["name"]
+                            result["wrcc_winter_tavg_station_dist_mi"] = dist_mi
+                            result["wrcc_winter_tavg_station_elev_diff_ft"] = elev_diff_r
+                            result["wrcc_winter_tavg_period"]          = period
+                            done.add("tavg")
+                            gained.append(f"Dec–Feb avg {metrics['winter_tavg_f']:.0f}°F ({period})")
+
+                        if gained:
+                            print(f"  [{pass_label}] {stn['name']} ({stn['dist_mi']:.1f}mi, "
+                                  f"{elev_str}): {', '.join(gained)}", flush=True)
+
+                    left = sorted(need_here - done)
+                    if not left:
                         break
-                    still_need = [
-                        m for m, done in [("snow", snow_done), ("tmax", tmax_done), ("tavg", tavg_done)]
-                        if not done and m in need_here
-                    ]
-                    if not still_need:
-                        break
-
-                    stn_elev = float(stn["elev"]) if stn["elev"] is not None else float("nan")
-                    elev_diff = abs(stn_elev - elev_ft) if not np.isnan(elev_ft) and not np.isnan(stn_elev) else float("nan")
-                    elev_str  = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
-
-                    metrics = _fetch_station_metrics(
-                        stn["uid"], {_METRIC_KEY[m] for m in still_need}
-                    )
-                    time.sleep(RATE_LIMIT)
-
-                    if metrics is None:
-                        print(f"  skip {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
-                              f"no metric with {MIN_YEARS}+ valid years")
-                        continue
-
-                    sid       = _preferred_sid(stn["sids"])
-                    dist_mi   = round(stn["dist_mi"], 2)
-                    elev_diff_r = round(elev_diff, 0) if not np.isnan(elev_diff) else None
-                    gained    = []
-
-                    if "snow" in still_need and metrics["winter_snow_in"] is not None:
-                        period = metrics["winter_snow_period"]
-                        result["wrcc_winter_snow_in"]                = metrics["winter_snow_in"]
-                        result["wrcc_winter_snow_station_id"]        = sid
-                        result["wrcc_winter_snow_station_name"]      = stn["name"]
-                        result["wrcc_winter_snow_station_dist_mi"]   = dist_mi
-                        result["wrcc_winter_snow_station_elev_diff_ft"] = elev_diff_r
-                        result["wrcc_winter_snow_period"]            = period
-                        snow_done = True
-                        gained.append(f"Nov–Apr snow {metrics['winter_snow_in']:.1f}\" ({period})")
-
-                    if "tmax" in still_need and metrics["july_tmax_f"] is not None:
-                        period = metrics["july_tmax_period"]
-                        result["wrcc_july_tmax_f"]               = metrics["july_tmax_f"]
-                        result["wrcc_july_tmax_station_id"]      = sid
-                        result["wrcc_july_tmax_station_name"]    = stn["name"]
-                        result["wrcc_july_tmax_station_dist_mi"] = dist_mi
-                        result["wrcc_july_tmax_station_elev_diff_ft"] = elev_diff_r
-                        result["wrcc_july_tmax_period"]          = period
-                        tmax_done = True
-                        gained.append(f"Jul hi {metrics['july_tmax_f']:.0f}°F ({period})")
-
-                    if "tavg" in still_need and metrics["winter_tavg_f"] is not None:
-                        period = metrics["winter_tavg_period"]
-                        result["wrcc_winter_tavg_f"]               = metrics["winter_tavg_f"]
-                        result["wrcc_winter_tavg_station_id"]      = sid
-                        result["wrcc_winter_tavg_station_name"]    = stn["name"]
-                        result["wrcc_winter_tavg_station_dist_mi"] = dist_mi
-                        result["wrcc_winter_tavg_station_elev_diff_ft"] = elev_diff_r
-                        result["wrcc_winter_tavg_period"]          = period
-                        tavg_done = True
-                        gained.append(f"Dec–Feb avg {metrics['winter_tavg_f']:.0f}°F ({period})")
-
-                    if gained:
-                        print(f"  {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
-                              f"{', '.join(gained)}", flush=True)
-                    else:
-                        print(f"  skip {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
-                              f"no needed metric with {MIN_YEARS}+ valid years", flush=True)
+                    print(f"  [{pass_label}] checked {n_checked} stations; none with "
+                          f"{MIN_YEARS}+ valid years for: {', '.join(left)}", flush=True)
 
                 _metric_col = {m: f"wrcc_{k}" for m, k in _METRIC_KEY.items()}
                 filled  = [m for m in need_here if result.get(_metric_col[m]) is not None]
