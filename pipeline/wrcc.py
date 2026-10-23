@@ -17,16 +17,29 @@ Station selection rules (mirrors noaa_normals.py):
     - Fills each metric independently; different stations can supply
       different metrics if the closest station has only partial data.
 
+Metrics (each needs ≥ MIN_YEARS (10) valid years, checked independently):
+    wrcc_winter_snow_in  Average winter snowfall (Nov–Apr) — NOT annual
+                         snowfall; kept distinct from NOAA annual snow.
+                         A winter is valid only when all six Nov–Apr months
+                         are valid.
+    wrcc_july_tmax_f     Mean July maximum temperature; one value per valid July.
+    wrcc_winter_tavg_f   Mean Dec–Feb average temperature; a winter is valid
+                         only when Dec, Jan and Feb are all valid.
+    A month is valid only if ACIS reports it with ≤ MAX_MISSING_DAYS missing
+    days; months with more come back as "M".
+
 Data period:
-    Prefers 1991-2020 when the station has ≥ MIN_YEARS (10) years of data
-    in that window; otherwise falls back to the station's full period of
-    record.  The actual period used is stored per metric in the cache.
+    Per metric, prefers 1991-2020 when that window has ≥ MIN_YEARS valid
+    years; otherwise falls back to the station's full period of record.
+    Each metric's stored period spans the years actually used in its
+    calculation, not the station's operating period.
 
 Output cache table: wrcc_cache
 Columns (20 total):
     geoid
-    wrcc_snow_in, wrcc_snow_station_id, wrcc_snow_station_name,
-      wrcc_snow_station_dist_mi, wrcc_snow_station_elev_diff_ft, wrcc_snow_period
+    wrcc_winter_snow_in, wrcc_winter_snow_station_id, wrcc_winter_snow_station_name,
+      wrcc_winter_snow_station_dist_mi, wrcc_winter_snow_station_elev_diff_ft,
+      wrcc_winter_snow_period
     wrcc_july_tmax_f, wrcc_july_tmax_station_id, wrcc_july_tmax_station_name,
       wrcc_july_tmax_station_dist_mi, wrcc_july_tmax_station_elev_diff_ft, wrcc_july_tmax_period
     wrcc_winter_tavg_f, wrcc_winter_tavg_station_id, wrcc_winter_tavg_station_name,
@@ -51,9 +64,10 @@ CACHE_PATH = "data/processed/wrcc_cache.parquet"
 
 WRCC_COLS = [
     "geoid",
-    "wrcc_snow_in",
-    "wrcc_snow_station_id", "wrcc_snow_station_name",
-    "wrcc_snow_station_dist_mi", "wrcc_snow_station_elev_diff_ft", "wrcc_snow_period",
+    "wrcc_winter_snow_in",
+    "wrcc_winter_snow_station_id", "wrcc_winter_snow_station_name",
+    "wrcc_winter_snow_station_dist_mi", "wrcc_winter_snow_station_elev_diff_ft",
+    "wrcc_winter_snow_period",
     "wrcc_july_tmax_f",
     "wrcc_july_tmax_station_id", "wrcc_july_tmax_station_name",
     "wrcc_july_tmax_station_dist_mi", "wrcc_july_tmax_station_elev_diff_ft", "wrcc_july_tmax_period",
@@ -66,8 +80,10 @@ WRCC_COLS = [
 # ── Thresholds ─────────────────────────────────────────────────────────────────
 MAX_DIST_MI  = 30.0
 MAX_ELEV_FT  = 1000.0
-MIN_YEARS    = 10      # minimum years of data required in preferred period
-SNOW_CORE_MONTHS = {11, 12, 1, 2, 3, 4}  # months a snow season must report to count
+MIN_YEARS    = 10      # minimum valid years/winters required, per metric
+MAX_MISSING_DAYS = 5   # ACIS maxmissing: months with more missing days are "M"
+WINTER_SNOW_MONTHS = {11, 12, 1, 2, 3, 4}  # all must be valid for a snow winter
+WINTER_TAVG_MONTHS = {12, 1, 2}            # all must be valid for a tavg winter
 REFRESH_DAYS = 730
 
 # ── ACIS API ───────────────────────────────────────────────────────────────────
@@ -191,9 +207,14 @@ def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
         "elems": [
             # reduce is required: without it ACIS returns each month as a
             # list of daily values instead of a single monthly value.
-            {"name": "maxt", "interval": "mly", "duration": "mly", "reduce": "mean"},
-            {"name": "snow", "interval": "mly", "duration": "mly", "reduce": "sum"},
-            {"name": "avgt", "interval": "mly", "duration": "mly", "reduce": "mean"},
+            # maxmissing makes ACIS return "M" for poorly covered months;
+            # without it a "monthly" value can come from one or two days.
+            {"name": "maxt", "interval": "mly", "duration": "mly", "reduce": "mean",
+             "maxmissing": MAX_MISSING_DAYS},
+            {"name": "snow", "interval": "mly", "duration": "mly", "reduce": "sum",
+             "maxmissing": MAX_MISSING_DAYS},
+            {"name": "avgt", "interval": "mly", "duration": "mly", "reduce": "mean",
+             "maxmissing": MAX_MISSING_DAYS},
         ],
         "meta": "uid",
     }
@@ -216,19 +237,48 @@ def _stn_data(uid, sdate: str, edate: str) -> list[list] | None:
         return None
 
 
+# metric value key → its period key, as returned by _compute_metrics
+METRIC_PERIOD_KEYS = {
+    "winter_snow_in": "winter_snow_period",
+    "july_tmax_f":    "july_tmax_period",
+    "winter_tavg_f":  "winter_tavg_period",
+}
+# short need names used in enrich() → metric value key
+_METRIC_KEY = {"snow": "winter_snow_in", "tmax": "july_tmax_f", "tavg": "winter_tavg_f"}
+
+
+def _summarize(values: dict[int, float], spans_new_year: bool) -> tuple[float | None, str | None]:
+    """
+    Average per-year values and describe the years used.  values maps year
+    (for winters, the year the winter ends) → that year's value.  Returns
+    (None, None) when there are fewer than MIN_YEARS valid years.
+    """
+    if len(values) < MIN_YEARS:
+        return None, None
+    first, last = min(values), max(values)
+    if spans_new_year:
+        first -= 1  # winter ending in Jan–Apr of `first` began the year before
+    return round(sum(values.values()) / len(values), 1), f"{first}-{last}"
+
+
 def _compute_metrics(rows: list[list]) -> dict:
     """
-    Compute snow_in, july_tmax_f, winter_tavg_f from a list of monthly data rows.
-    Each row: [date_str, maxt_str, snow_str, avgt_str] where date_str is "YYYY-MM".
+    Compute winter_snow_in, july_tmax_f, winter_tavg_f from a list of monthly
+    data rows.  Each row: [date_str, maxt_str, snow_str, avgt_str] where
+    date_str is "YYYY-MM" and poorly covered months are already "M" (maxmissing).
 
-    Returns dict with keys: snow_in, july_tmax_f, winter_tavg_f, period, n_years.
-    Any metric is None if insufficient data.
+    Each metric is checked independently and is None unless it has
+    ≥ MIN_YEARS valid years:
+        winter_snow_in — mean Nov–Apr total over winters with all six months valid
+        july_tmax_f    — mean of valid July monthly max temps
+        winter_tavg_f  — mean Dec–Feb avg temp over winters with all three months valid
+
+    Returns those keys plus winter_snow_period, july_tmax_period and
+    winter_tavg_period, each spanning only the years used for that metric.
     """
-    july_tmax_vals = []
-    djf_tavg_vals  = []
-    annual_snow    = {}   # season end year → total snow inches
-    snow_months    = {}   # season end year → set of months with a snow report
-    dates_with_data = []
+    july_tmax   = {}   # year → July mean max temp
+    winter_snow = {}   # winter end year → {month: snow}
+    winter_tavg = {}   # winter end year → {month: avg temp}
 
     for row in rows:
         if not row or len(row) < 4:
@@ -244,51 +294,45 @@ def _compute_metrics(rows: list[list]) -> dict:
         snow  = _parse_value(row[2])
         avgt  = _parse_value(row[3])
 
-        if maxt is not None or snow is not None or avgt is not None:
-            dates_with_data.append(date_str)
+        # Winters are keyed by the year they end (Nov/Dec belong to the next year)
+        winter = year + 1 if month >= 7 else year
 
         if month == 7 and maxt is not None:
-            july_tmax_vals.append(maxt)
+            july_tmax[year] = maxt
 
-        if month in (12, 1, 2) and avgt is not None:
-            djf_tavg_vals.append(avgt)
+        if month in WINTER_SNOW_MONTHS and snow is not None:
+            winter_snow.setdefault(winter, {})[month] = snow
 
-        # Accumulate seasonal snow over Jul–Jun seasons, keyed by the year the
-        # season ends, and track which core snow months were reported.
-        if snow is not None:
-            season = year + 1 if month >= 7 else year
-            annual_snow[season] = annual_snow.get(season, 0.0) + snow
-            snow_months.setdefault(season, set()).add(month)
+        if month in WINTER_TAVG_MONTHS and avgt is not None:
+            winter_tavg.setdefault(winter, {})[month] = avgt
 
-    n_years = len(set(int(d[:4]) for d in dates_with_data)) if dates_with_data else 0
-    period = None
-    if dates_with_data:
-        period = f"{dates_with_data[0][:4]}-{dates_with_data[-1][:4]}"
+    # Only winters with every required month valid count; a winter missing a
+    # month would undercount snow or skew the temperature average.
+    snow_totals = {w: sum(m.values()) for w, m in winter_snow.items()
+                   if m.keys() == WINTER_SNOW_MONTHS}
+    tavg_means  = {w: sum(m.values()) / len(m) for w, m in winter_tavg.items()
+                   if m.keys() == WINTER_TAVG_MONTHS}
 
-    # Only average seasons where every core snow month was reported; a season
-    # missing winter months would undercount and drag the average down.
-    complete = [
-        total for season, total in annual_snow.items()
-        if SNOW_CORE_MONTHS <= snow_months[season]
-    ]
-    snow_in = round(sum(complete) / len(complete), 1) if len(complete) >= MIN_YEARS else None
-    july_tmax_f = round(sum(july_tmax_vals) / len(july_tmax_vals), 1) if july_tmax_vals else None
-    winter_tavg_f = round(sum(djf_tavg_vals) / len(djf_tavg_vals), 1) if djf_tavg_vals else None
+    winter_snow_in, winter_snow_period = _summarize(snow_totals, spans_new_year=True)
+    july_tmax_f, july_tmax_period      = _summarize(july_tmax, spans_new_year=False)
+    winter_tavg_f, winter_tavg_period  = _summarize(tavg_means, spans_new_year=True)
 
     return {
-        "snow_in":       snow_in,
-        "july_tmax_f":   july_tmax_f,
-        "winter_tavg_f": winter_tavg_f,
-        "period":        period,
-        "n_years":       n_years,
+        "winter_snow_in":     winter_snow_in,
+        "winter_snow_period": winter_snow_period,
+        "july_tmax_f":        july_tmax_f,
+        "july_tmax_period":   july_tmax_period,
+        "winter_tavg_f":      winter_tavg_f,
+        "winter_tavg_period": winter_tavg_period,
     }
 
 
-def _fetch_station_metrics(uid) -> dict | None:
+def _fetch_station_metrics(uid, need: set[str]) -> dict | None:
     """
-    Fetch metrics for a station, trying 1991-2020 first; falls back to POR
-    if there are fewer than MIN_YEARS years of data in the preferred window.
-    Returns None if the station is unreachable.
+    Fetch metrics for a station, trying 1991-2020 first.  Any metric in `need`
+    (keys of METRIC_PERIOD_KEYS) that lacks MIN_YEARS valid years there is
+    retried against the full period of record, independently of the others.
+    Returns None if the station is unreachable or yields no metric at all.
     """
     rows = _stn_data(uid, PREFERRED_SDATE, PREFERRED_EDATE)
     if rows is None:
@@ -296,15 +340,18 @@ def _fetch_station_metrics(uid) -> dict | None:
 
     metrics = _compute_metrics(rows)
 
-    if metrics["n_years"] < MIN_YEARS:
-        # Try full period of record
+    if any(metrics[k] is None for k in need):
         por_rows = _stn_data(uid, "por", "por")
         if por_rows:
             por_metrics = _compute_metrics(por_rows)
-            if por_metrics["n_years"] >= MIN_YEARS:
-                metrics = por_metrics
+            for key, period_key in METRIC_PERIOD_KEYS.items():
+                if metrics[key] is None and por_metrics[key] is not None:
+                    metrics[key] = por_metrics[key]
+                    metrics[period_key] = por_metrics[period_key]
 
-    return metrics if metrics["n_years"] >= MIN_YEARS else None
+    if all(metrics[k] is None for k in METRIC_PERIOD_KEYS):
+        return None
+    return metrics
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -439,30 +486,34 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                     elev_diff = abs(stn_elev - elev_ft) if not np.isnan(elev_ft) and not np.isnan(stn_elev) else float("nan")
                     elev_str  = f"{elev_diff:.0f}ft Δelev" if not np.isnan(elev_diff) else "?ft Δelev"
 
-                    metrics = _fetch_station_metrics(stn["uid"])
+                    metrics = _fetch_station_metrics(
+                        stn["uid"], {_METRIC_KEY[m] for m in still_need}
+                    )
                     time.sleep(RATE_LIMIT)
 
                     if metrics is None:
-                        print(f"  skip {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): no data")
+                        print(f"  skip {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
+                              f"no metric with {MIN_YEARS}+ valid years")
                         continue
 
                     sid       = _preferred_sid(stn["sids"])
                     dist_mi   = round(stn["dist_mi"], 2)
                     elev_diff_r = round(elev_diff, 0) if not np.isnan(elev_diff) else None
-                    period    = metrics["period"]
                     gained    = []
 
-                    if "snow" in still_need and metrics["snow_in"] is not None:
-                        result["wrcc_snow_in"]                = metrics["snow_in"]
-                        result["wrcc_snow_station_id"]        = sid
-                        result["wrcc_snow_station_name"]      = stn["name"]
-                        result["wrcc_snow_station_dist_mi"]   = dist_mi
-                        result["wrcc_snow_station_elev_diff_ft"] = elev_diff_r
-                        result["wrcc_snow_period"]            = period
+                    if "snow" in still_need and metrics["winter_snow_in"] is not None:
+                        period = metrics["winter_snow_period"]
+                        result["wrcc_winter_snow_in"]                = metrics["winter_snow_in"]
+                        result["wrcc_winter_snow_station_id"]        = sid
+                        result["wrcc_winter_snow_station_name"]      = stn["name"]
+                        result["wrcc_winter_snow_station_dist_mi"]   = dist_mi
+                        result["wrcc_winter_snow_station_elev_diff_ft"] = elev_diff_r
+                        result["wrcc_winter_snow_period"]            = period
                         snow_done = True
-                        gained.append(f"snow {metrics['snow_in']:.1f}\"")
+                        gained.append(f"Nov–Apr snow {metrics['winter_snow_in']:.1f}\" ({period})")
 
                     if "tmax" in still_need and metrics["july_tmax_f"] is not None:
+                        period = metrics["july_tmax_period"]
                         result["wrcc_july_tmax_f"]               = metrics["july_tmax_f"]
                         result["wrcc_july_tmax_station_id"]      = sid
                         result["wrcc_july_tmax_station_name"]    = stn["name"]
@@ -470,9 +521,10 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                         result["wrcc_july_tmax_station_elev_diff_ft"] = elev_diff_r
                         result["wrcc_july_tmax_period"]          = period
                         tmax_done = True
-                        gained.append(f"Jul hi {metrics['july_tmax_f']:.0f}°F")
+                        gained.append(f"Jul hi {metrics['july_tmax_f']:.0f}°F ({period})")
 
                     if "tavg" in still_need and metrics["winter_tavg_f"] is not None:
+                        period = metrics["winter_tavg_period"]
                         result["wrcc_winter_tavg_f"]               = metrics["winter_tavg_f"]
                         result["wrcc_winter_tavg_station_id"]      = sid
                         result["wrcc_winter_tavg_station_name"]    = stn["name"]
@@ -480,16 +532,16 @@ def enrich(candidates: pd.DataFrame, cache_only: bool = False) -> pd.DataFrame:
                         result["wrcc_winter_tavg_station_elev_diff_ft"] = elev_diff_r
                         result["wrcc_winter_tavg_period"]          = period
                         tavg_done = True
-                        gained.append(f"win {metrics['winter_tavg_f']:.0f}°F")
+                        gained.append(f"Dec–Feb avg {metrics['winter_tavg_f']:.0f}°F ({period})")
 
                     if gained:
-                        print(f"  {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}, "
-                              f"{period}): {', '.join(gained)}", flush=True)
+                        print(f"  {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
+                              f"{', '.join(gained)}", flush=True)
                     else:
                         print(f"  skip {stn['name']} ({stn['dist_mi']:.1f}mi, {elev_str}): "
-                              f"no data for needed metrics", flush=True)
+                              f"no needed metric with {MIN_YEARS}+ valid years", flush=True)
 
-                _metric_col = {"snow": "wrcc_snow_in", "tmax": "wrcc_july_tmax_f", "tavg": "wrcc_winter_tavg_f"}
+                _metric_col = {m: f"wrcc_{k}" for m, k in _METRIC_KEY.items()}
                 filled  = [m for m in need_here if result.get(_metric_col[m]) is not None]
                 missing = sorted(need_here - set(filled))
                 if missing:

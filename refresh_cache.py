@@ -179,7 +179,7 @@ def _enrich_thread(candidates: pd.DataFrame):
     _log("Enriching WRCC/ACIS climate fallback...")
     try:
         candidates = wrcc.enrich(candidates, cache_only=False)
-        n_wrcc_snow = candidates["wrcc_snow_in"].notna().sum() if "wrcc_snow_in" in candidates.columns else 0
+        n_wrcc_snow = candidates["wrcc_winter_snow_in"].notna().sum() if "wrcc_winter_snow_in" in candidates.columns else 0
         _log(f"WRCC done — {n_wrcc_snow:,} places filled via ACIS fallback")
     except Exception:
         _log("WRCC pass failed (non-fatal):")
