@@ -185,20 +185,35 @@ def _stn_meta(lat: float, lon: float) -> list[dict]:
 
 
 def _preferred_sid(sids: list) -> str | None:
-    """Pick the best station ID for display: prefer GHCND (type 6), then COOP (type 2)."""
+    """Pick the best station ID for display: prefer GHCND (type 6), then COOP (type 2).
+
+    ACIS StnMeta returns sids as space-separated strings ("USC00456789 2").
+    Nested [id, type] lists are also accepted defensively.
+    """
     preferred = None
     for sid_entry in (sids or []):
-        if not isinstance(sid_entry, (list, tuple)) or len(sid_entry) < 2:
+        if isinstance(sid_entry, str):
+            parts = sid_entry.split()
+            if len(parts) < 2:
+                continue
+            sid_val, sid_type = parts[0], int(parts[-1])
+        elif isinstance(sid_entry, (list, tuple)) and len(sid_entry) >= 2:
+            sid_val, sid_type = str(sid_entry[0]), int(sid_entry[1])
+        else:
             continue
-        sid_val, sid_type = str(sid_entry[0]), int(sid_entry[1])
         if sid_type == 6:
             return sid_val
         if sid_type == 2 and preferred is None:
             preferred = sid_val
     if preferred:
         return preferred
-    if sids and isinstance(sids[0], (list, tuple)):
-        return str(sids[0][0])
+    # Fallback: return the bare ID portion of the first entry
+    if sids:
+        first = sids[0]
+        if isinstance(first, str):
+            return first.split()[0]
+        if isinstance(first, (list, tuple)):
+            return str(first[0])
     return None
 
 
